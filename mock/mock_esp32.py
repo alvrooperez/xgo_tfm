@@ -29,12 +29,12 @@ except ImportError:
     tk = None
     ttk = None
 
-# Optional ROS 2 integration
 try:
     import rclpy
     from rclpy.node import Node
     from sensor_msgs.msg import LaserScan
-    from geometry_msgs.msg import PoseStamped
+    from geometry_msgs.msg import PoseStamped, TransformStamped
+    import tf2_ros
     HAS_ROS2 = True
 except ImportError:
     HAS_ROS2 = False
@@ -118,6 +118,14 @@ class RoomMap:
         if 0 <= gx < self.w and 0 <= gy < self.h:
             return bool(self.grid[gy, gx])
         return True  # Outside room is occupied
+
+    def is_occupied_footprint(self, wx: float, wy: float, radius: float = 0.17) -> bool:
+        if self.is_occupied(wx, wy):
+            return True
+        for a in (0.0, 0.785, 1.571, 2.356, 3.142, -2.356, -1.571, -0.785):
+            if self.is_occupied(wx + radius * math.cos(a), wy + radius * math.sin(a)):
+                return True
+        return False
 
     def raycast_lidar(self, rx: float, ry: float, rtheta: float, num_rays=180, max_range=8.0, step=0.04):
         """Simulates 360-degree LiDAR raycasting."""
@@ -322,26 +330,58 @@ class XgoMockMCU:
             last_t = now
 
             with self.lock:
-                # 1. Point-and-click autonomous navigation controller (if active)
+                # 1. Point-and-click autonomous navigation controller with LiDAR Obstacle Avoidance
                 if self.goal_x is not None and self.goal_y is not None:
                     dx = self.goal_x - self.x
                     dy = self.goal_y - self.y
                     dist = math.hypot(dx, dy)
-                    if dist < 0.12:
+                    if dist < 0.15:
                         self.goal_x = None
                         self.goal_y = None
                         self.vx = 0.0
                         self.vy = 0.0
                         self.vyaw = 0.0
                     else:
-                        target_angle = math.atan2(dy, dx)
+                        # Vector Field LiDAR Obstacle Avoidance
+                        v_att_x = dx / dist
+                        v_att_y = dy / dist
+
+                        # Query LiDAR rays to detect nearby walls/obstacles
+                        _, _, hits = self.map.raycast_lidar(self.x, self.y, self.theta, num_rays=72, max_range=3.0)
+                        v_rep_x = 0.0
+                        v_rep_y = 0.0
+                        min_front_dist = 999.0
+
+                        for hx, hy in hits:
+                            h_dist = math.hypot(hx - self.x, hy - self.y)
+                            h_angle = (math.atan2(hy - self.y, hx - self.x) - self.theta + math.pi) % (2 * math.pi) - math.pi
+                            if abs(h_angle) < 0.6:  # In front cone
+                                min_front_dist = min(min_front_dist, h_dist)
+                            
+                            # Repel if within 0.55m
+                            if h_dist < 0.55 and h_dist > 0.01:
+                                rep_mag = ((0.55 - h_dist) / 0.55) ** 1.5
+                                v_rep_x += ((self.x - hx) / h_dist) * rep_mag
+                                v_rep_y += ((self.y - hy) / h_dist) * rep_mag
+
+                        # Combine attractive and repulsive forces
+                        v_total_x = v_att_x + 1.8 * v_rep_x
+                        v_total_y = v_att_y + 1.8 * v_rep_y
+                        target_angle = math.atan2(v_total_y, v_total_x)
                         angle_diff = (target_angle - self.theta + math.pi) % (2 * math.pi) - math.pi
-                        if abs(angle_diff) > 0.4:
+
+                        if min_front_dist < 0.28:
+                            # Obstacle very close ahead: stop forward motion and pivot away
+                            self.vx = 0.0
+                            self.vyaw = -1.0 if angle_diff < 0 else 1.0
+                        elif abs(angle_diff) > 0.45:
+                            # Turn towards clearer heading
                             self.vx = 0.04
-                            self.vyaw = max(-1.2, min(1.2, angle_diff * 2.5))
+                            self.vyaw = max(-1.2, min(1.2, angle_diff * 2.2))
                         else:
-                            self.vx = max(0.08, min(0.22, dist * 0.4))
-                            self.vyaw = max(-1.0, min(1.0, angle_diff * 2.0))
+                            speed = max(0.08, min(0.20, dist * 0.4, (min_front_dist - 0.25) * 0.8))
+                            self.vx = speed
+                            self.vyaw = max(-0.9, min(0.9, angle_diff * 1.8))
                         self.vy = 0.0
                         self.last_cmd_time = now
 
@@ -363,8 +403,8 @@ class XgoMockMCU:
                 next_x = self.x + target_dx
                 next_y = self.y + target_dy
 
-                # Check map collision before advancing
-                if not self.map.is_occupied(next_x, next_y):
+                # Check map collision with full robot footprint
+                if not self.map.is_occupied_footprint(next_x, next_y, radius=0.17):
                     self.x = next_x
                     self.y = next_y
                 else:
@@ -442,6 +482,8 @@ class Ros2Bridge(threading.Thread):
         self.node = None
         self.scan_pub = None
         self.goal_pub = None
+        self.tf_broadcaster = None
+        self.static_tf_broadcaster = None
 
     def run(self):
         if not HAS_ROS2:
@@ -452,27 +494,62 @@ class Ros2Bridge(threading.Thread):
             self.node = Node("xgo_mock_bridge")
             self.scan_pub = self.node.create_publisher(LaserScan, "/scan", 10)
             self.goal_pub = self.node.create_publisher(PoseStamped, "/goal_pose", 10)
-            print("[ROS 2 Bridge] Active: Streaming /scan and ready to publish /goal_pose.")
+            self.tf_broadcaster = tf2_ros.TransformBroadcaster(self.node)
+            self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self.node)
 
-            # Periodic scan publisher at 10 Hz
+            # Send initial static transforms
+            t_laser = TransformStamped()
+            t_laser.header.stamp = self.node.get_clock().now().to_msg()
+            t_laser.header.frame_id = "base_footprint"
+            t_laser.child_frame_id = "laser_frame"
+            t_laser.transform.translation.x = 0.05
+            t_laser.transform.translation.y = 0.0
+            t_laser.transform.translation.z = 0.15
+            t_laser.transform.rotation.w = 1.0
+
+            t_map = TransformStamped()
+            t_map.header.stamp = self.node.get_clock().now().to_msg()
+            t_map.header.frame_id = "map"
+            t_map.child_frame_id = "odom"
+            t_map.transform.rotation.w = 1.0
+
+            self.static_tf_broadcaster.sendTransform([t_laser, t_map])
+            print("[ROS 2 Bridge] Active: Streaming /scan, full TF tree (map->odom->base_footprint->laser_frame), and /goal_pose.")
+
+            # Periodic scan & TF publisher at 10 Hz
             while self.mcu.running and rclpy.ok():
                 time.sleep(0.10)
-                self._publish_scan()
+                self._publish_scan_and_tf()
                 rclpy.spin_once(self.node, timeout_sec=0.01)
         except Exception as e:
             print(f"[ROS 2 Bridge] Note: Bridge stopped ({e})")
 
-    def _publish_scan(self):
+    def _publish_scan_and_tf(self):
         if not self.scan_pub:
             return
         with self.mcu.lock:
             rx, ry, rtheta = self.mcu.x, self.mcu.y, self.mcu.theta
 
+        now_msg = self.node.get_clock().now().to_msg()
+
+        # 1. Dynamic TF: odom -> base_footprint
+        t_odom = TransformStamped()
+        t_odom.header.stamp = now_msg
+        t_odom.header.frame_id = "odom"
+        t_odom.child_frame_id = "base_footprint"
+        t_odom.transform.translation.x = float(rx)
+        t_odom.transform.translation.y = float(ry)
+        t_odom.transform.translation.z = 0.0
+        t_odom.transform.rotation.z = math.sin(rtheta / 2.0)
+        t_odom.transform.rotation.w = math.cos(rtheta / 2.0)
+        self.tf_broadcaster.sendTransform(t_odom)
+
+        # 2. LiDAR Scan
         num_rays = 180
         angles, ranges, _ = self.map.raycast_lidar(rx, ry, rtheta, num_rays=num_rays)
 
         msg = LaserScan()
-        msg.header.stamp = self.node.get_clock().now().to_msg()
+        msg.header.stamp = now_msg
         msg.header.frame_id = "laser_frame"
         msg.angle_min = 0.0
         msg.angle_max = 2.0 * math.pi
