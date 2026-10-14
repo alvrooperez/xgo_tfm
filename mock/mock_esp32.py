@@ -328,64 +328,14 @@ class XgoMockMCU:
             now = time.time()
             dt = now - last_t
             last_t = now
-
             with self.lock:
-                # 1. Point-and-click autonomous navigation controller with LiDAR Obstacle Avoidance
+                # Clear visual goal pin if robot is within 0.25m
                 if self.goal_x is not None and self.goal_y is not None:
-                    dx = self.goal_x - self.x
-                    dy = self.goal_y - self.y
-                    dist = math.hypot(dx, dy)
-                    if dist < 0.15:
+                    if math.hypot(self.goal_x - self.x, self.goal_y - self.y) < 0.25:
                         self.goal_x = None
                         self.goal_y = None
-                        self.vx = 0.0
-                        self.vy = 0.0
-                        self.vyaw = 0.0
-                    else:
-                        # Vector Field LiDAR Obstacle Avoidance
-                        v_att_x = dx / dist
-                        v_att_y = dy / dist
 
-                        # Query LiDAR rays to detect nearby walls/obstacles
-                        _, _, hits = self.map.raycast_lidar(self.x, self.y, self.theta, num_rays=72, max_range=3.0)
-                        v_rep_x = 0.0
-                        v_rep_y = 0.0
-                        min_front_dist = 999.0
-
-                        for hx, hy in hits:
-                            h_dist = math.hypot(hx - self.x, hy - self.y)
-                            h_angle = (math.atan2(hy - self.y, hx - self.x) - self.theta + math.pi) % (2 * math.pi) - math.pi
-                            if abs(h_angle) < 0.6:  # In front cone
-                                min_front_dist = min(min_front_dist, h_dist)
-                            
-                            # Repel if within 0.55m
-                            if h_dist < 0.55 and h_dist > 0.01:
-                                rep_mag = ((0.55 - h_dist) / 0.55) ** 1.5
-                                v_rep_x += ((self.x - hx) / h_dist) * rep_mag
-                                v_rep_y += ((self.y - hy) / h_dist) * rep_mag
-
-                        # Combine attractive and repulsive forces
-                        v_total_x = v_att_x + 1.8 * v_rep_x
-                        v_total_y = v_att_y + 1.8 * v_rep_y
-                        target_angle = math.atan2(v_total_y, v_total_x)
-                        angle_diff = (target_angle - self.theta + math.pi) % (2 * math.pi) - math.pi
-
-                        if min_front_dist < 0.28:
-                            # Obstacle very close ahead: stop forward motion and pivot away
-                            self.vx = 0.0
-                            self.vyaw = -1.0 if angle_diff < 0 else 1.0
-                        elif abs(angle_diff) > 0.45:
-                            # Turn towards clearer heading
-                            self.vx = 0.04
-                            self.vyaw = max(-1.2, min(1.2, angle_diff * 2.2))
-                        else:
-                            speed = max(0.08, min(0.20, dist * 0.4, (min_front_dist - 0.25) * 0.8))
-                            self.vx = speed
-                            self.vyaw = max(-0.9, min(0.9, angle_diff * 1.8))
-                        self.vy = 0.0
-                        self.last_cmd_time = now
-
-                # 2. Watchdog (0.5s timeout for safety)
+                # Watchdog (0.5s timeout for safety)
                 if now - self.last_cmd_time > 0.5:
                     self.vx = 0.0
                     self.vy = 0.0
@@ -394,7 +344,7 @@ class XgoMockMCU:
                 else:
                     self.is_moving = (abs(self.vx) > 0.005 or abs(self.vy) > 0.005 or abs(self.vyaw) > 0.02)
 
-                # 3. Odometry Integration & Collision Check
+                # Odometry Integration & Collision Check
                 self.theta += self.vyaw * dt
                 self.theta = (self.theta + math.pi) % (2 * math.pi) - math.pi
 
@@ -403,7 +353,7 @@ class XgoMockMCU:
                 next_x = self.x + target_dx
                 next_y = self.y + target_dy
 
-                # Check map collision with full robot footprint
+                # Check map collision with full robot footprint (radius 17cm)
                 if not self.map.is_occupied_footprint(next_x, next_y, radius=0.17):
                     self.x = next_x
                     self.y = next_y
@@ -438,7 +388,6 @@ class XgoMockMCU:
         with self.lock:
             self.goal_x = gx
             self.goal_y = gy
-            self.last_cmd_time = time.time()
 
     def reset_pose(self):
         with self.lock:
@@ -497,24 +446,24 @@ class Ros2Bridge(threading.Thread):
             self.tf_broadcaster = tf2_ros.TransformBroadcaster(self.node)
             self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self.node)
 
-            # Send initial static transforms
+            # Send static transforms: base_footprint -> base_link -> laser_frame
+            t_link = TransformStamped()
+            t_link.header.stamp = self.node.get_clock().now().to_msg()
+            t_link.header.frame_id = "base_footprint"
+            t_link.child_frame_id = "base_link"
+            t_link.transform.rotation.w = 1.0
+
             t_laser = TransformStamped()
             t_laser.header.stamp = self.node.get_clock().now().to_msg()
-            t_laser.header.frame_id = "base_footprint"
+            t_laser.header.frame_id = "base_link"
             t_laser.child_frame_id = "laser_frame"
             t_laser.transform.translation.x = 0.05
             t_laser.transform.translation.y = 0.0
             t_laser.transform.translation.z = 0.15
             t_laser.transform.rotation.w = 1.0
 
-            t_map = TransformStamped()
-            t_map.header.stamp = self.node.get_clock().now().to_msg()
-            t_map.header.frame_id = "map"
-            t_map.child_frame_id = "odom"
-            t_map.transform.rotation.w = 1.0
-
-            self.static_tf_broadcaster.sendTransform([t_laser, t_map])
-            print("[ROS 2 Bridge] Active: Streaming /scan, full TF tree (map->odom->base_footprint->laser_frame), and /goal_pose.")
+            self.static_tf_broadcaster.sendTransform([t_link, t_laser])
+            print("[ROS 2 Bridge] Active: Streaming /scan, robot TF, and /goal_pose.")
 
             # Periodic scan & TF publisher at 10 Hz
             while self.mcu.running and rclpy.ok():
