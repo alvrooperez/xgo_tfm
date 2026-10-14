@@ -1,35 +1,60 @@
-# XGO Mini 2S Autonomous Quadruped Robot (TFM)
+# XGO Mini 2S - Simulation Branch (`sim`)
 
-End-to-End Autonomous Navigation and Fleet Coordination System in Modern C++20 and ROS 2 Jazzy for the XGO Mini 2S quadruped robot dog.
+This branch contains the **Gazebo Harmonic** digital twin, sensor bridges, SLAM mapping, and **Nav2 autonomous navigation** with MPPI local controller.
 
-## System Overview
+## Features
 
-* **Robot Platform:** Luwu Dynamics XGO Mini 2S (12-DOF Quadruped, 1.2 kg)
-* **Compute Unit:** Raspberry Pi Compute Module 5 Lite (Quad-core ARM Cortex-A76 @ 2.4 GHz)
-* **Embedded Bus:** Hardware UART `/dev/ttyAMA0` (115200 baud, 8N1)
-* **LiDAR Sensor:** LDROBOT LD19 / D300 (360° 2D Laser Rangefinder, 12m)
-* **Software Core:** Modern C++20, ROS 2 Jazzy Jalisco, Gazebo Harmonic, Nav2 (MPPI Controller), Docker
-
----
-
-## Repository Branch Structure
-
-This repository follows a strict **Sim-to-Real** branch architecture:
-
-| Branch | Target Environment | Description |
-| :--- | :--- | :--- |
-| **`sim`** | Host PC / Simulation | Gazebo Harmonic digital twin, world models, sensor bridges, Nav2 MPPI simulation, SLAM mapping, and multi-robot testing. |
-| **`funcional`** | Physical Robot (Raspberry Pi CM5) | Production embedded deployment with Docker (`compose.yaml`), C++20 hardware driver over `/dev/ttyAMA0`, real LiDAR node, and edge navigation. |
+* **Gazebo Harmonic (`gz-sim8`):** Physics simulation with enclosed room world (`worlds/room.sdf`).
+* **URDF & Plugins:** Exact XGO Mini 2S kinematic model with `gz-sim-velocity-control-system` and `gz-sim-odometry-publisher-system`.
+* **Simulated Sensors:**
+  * 360° LiDAR (`/scan`) matching LD19/D300 specs.
+  * 6-DOF IMU (`/imu/data`).
+  * Odometry (`/odom` and TF tree).
+* **SLAM Toolbox (`slam_toolbox`):** Online asynchronous 2D mapping with automated lifecycle management.
+* **AMCL & Map Server (`nav2_amcl`, `nav2_map_server`):** Global localization on pre-built room maps.
+* **Autonomous Navigation (`nav2_bringup`):** Full Nav2 stack with **omnidirectional MPPI local controller** (`motion_model: "Omni"`).
 
 ---
 
-## Quick Navigation
+## Build Instructions
 
-* To run the **Gazebo simulation & Nav2 on PC**:
-  ```bash
-  git checkout sim
-  ```
-* To deploy on the **physical robot using Docker**:
-  ```bash
-  git checkout funcional
-  ```
+```bash
+cd /home/alvaro/Desktop/TFM/xgo_tfm
+colcon build --symlink-install
+source install/setup.bash
+```
+
+---
+
+## Launch Modes
+
+### 1. Autonomous Navigation with Nav2 (Recommended)
+Loads the room map, AMCL localization, Gazebo simulation, and Nav2 MPPI controller:
+```bash
+ros2 launch xgo_sim nav.launch.py
+```
+*In RViz2, click the **"Nav2 Goal"** tool and click anywhere on the map to navigate autonomously.*
+
+### 2. SLAM Mapping Mode
+Explore and generate a new 2D room map:
+```bash
+ros2 launch xgo_sim mapping.launch.py
+```
+*In a second terminal, drive the dog:*
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+*Save the generated map:*
+```bash
+./scripts/save_map.sh my_map
+```
+
+### 3. Static Localization Mode (AMCL only)
+```bash
+ros2 launch xgo_sim localization.launch.py
+```
+
+### 4. Raw Simulation & Teleop
+```bash
+ros2 launch xgo_sim sim.launch.py
+```

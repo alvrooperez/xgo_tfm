@@ -1,0 +1,183 @@
+<?xml version="1.0"?>
+<robot name="xgo_mini2s" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Materials -->
+  <material name="dark_grey">
+    <color rgba="0.2 0.2 0.2 1.0"/>
+  </material>
+  <material name="orange">
+    <color rgba="0.9 0.4 0.0 1.0"/>
+  </material>
+  <material name="black">
+    <color rgba="0.05 0.05 0.05 1.0"/>
+  </material>
+  <material name="blue">
+    <color rgba="0.1 0.3 0.8 1.0"/>
+  </material>
+
+  <!-- Base Footprint (Ground plane projection) -->
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.12" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Base Link (Robot Body) -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.25 0.14 0.08"/>
+      </geometry>
+      <material name="dark_grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.25 0.14 0.08"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.2"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.0026" ixy="0" ixz="0" iyy="0.0068" iyz="0" izz="0.0082"/>
+    </inertial>
+  </link>
+
+  <!-- Visual Legs -->
+  <xacro:macro name="leg" params="prefix x_pos y_pos">
+    <link name="${prefix}_leg">
+      <visual>
+        <origin xyz="0 0 -0.06" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="0.015" length="0.12"/>
+        </geometry>
+        <material name="orange"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 -0.06" rpy="0 0 0"/>
+        <geometry>
+          <sphere radius="0.018"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.1"/>
+        <origin xyz="0 0 -0.06" rpy="0 0 0"/>
+        <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.00005"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}_leg_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${prefix}_leg"/>
+      <origin xyz="${x_pos} ${y_pos} 0" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:leg prefix="fl" x_pos="0.10" y_pos="0.08"/>
+  <xacro:leg prefix="fr" x_pos="0.10" y_pos="-0.08"/>
+  <xacro:leg prefix="rl" x_pos="-0.10" y_pos="0.08"/>
+  <xacro:leg prefix="rr" x_pos="-0.10" y_pos="-0.08"/>
+
+  <!-- IMU Sensor -->
+  <link name="imu_link"/>
+
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- LiDAR Sensor Link -->
+  <link name="laser_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.035" length="0.03"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.035" length="0.03"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.15"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser_link"/>
+    <origin xyz="0.06 0 0.055" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ================= Gazebo Harmonic Plugins & Sensors ================= -->
+  <gazebo reference="base_link">
+    <material>
+      <ambient>0.2 0.2 0.2 1</ambient>
+      <diffuse>0.2 0.2 0.2 1</diffuse>
+    </material>
+  </gazebo>
+
+  <gazebo reference="imu_link">
+    <sensor name="imu_sensor" type="imu">
+      <always_on>true</always_on>
+      <update_rate>50</update_rate>
+      <visualize>true</visualize>
+      <topic>/imu/data</topic>
+      <gz_frame_id>imu_link</gz_frame_id>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="laser_link">
+    <material>
+      <ambient>0.1 0.1 0.1 1</ambient>
+      <diffuse>0.1 0.1 0.1 1</diffuse>
+    </material>
+    <sensor name="gpu_lidar" type="gpu_lidar">
+      <pose>0 0 0 0 0 0</pose>
+      <always_on>true</always_on>
+      <visualize>true</visualize>
+      <update_rate>10</update_rate>
+      <topic>/scan</topic>
+      <gz_frame_id>laser_link</gz_frame_id>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.14159265</min_angle>
+            <max_angle>3.14159265</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.12</min>
+          <max>10.0</max>
+          <resolution>0.01</resolution>
+        </range>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- Gazebo Movement & Odometry Plugins -->
+  <gazebo>
+    <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl">
+      <topic>/cmd_vel</topic>
+    </plugin>
+    <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>odom</odom_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+      <odom_topic>/odom</odom_topic>
+      <tf_topic>/model/xgo_mini2s/tf</tf_topic>
+      <dimensions>2</dimensions>
+    </plugin>
+  </gazebo>
+
+</robot>
