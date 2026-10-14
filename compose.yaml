@@ -50,5 +50,8 @@ services:
     tty: true
     volumes:
       - /tmp:/tmp
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+    environment:
+      - DISPLAY=${DISPLAY}
     network_mode: host
     restart: unless-stopped

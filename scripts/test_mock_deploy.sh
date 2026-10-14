@@ -12,9 +12,9 @@ echo "======================================================================"
 echo "    XGO Mini 2S - Automated Mock Hardware & Deployment Test          "
 echo "======================================================================"
 
-# 1. Start Virtual ESP32 MCU in background
+# 1. Start Virtual ESP32 MCU in background (headless)
 echo "[1/4] Starting Virtual ESP32 MCU Simulator on /tmp/tty_robot..."
-python3 "$REPO_DIR/mock/mock_esp32.py" > /dev/null 2>&1 &
+python3 "$REPO_DIR/mock/mock_esp32.py" --headless > /dev/null 2>&1 &
 MOCK_PID=$!
 sleep 1.5
 
