@@ -1,0 +1,13 @@
+services:
+  xgo_driver:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xgo_driver_cpp:jazzy
+    container_name: xgo_driver
+    network_mode: host
+    ipc: host
+    restart: unless-stopped
+    devices:
+      - /dev/ttyAMA0:/dev/ttyAMA0
+    command: ros2 launch xgo_driver_cpp xgo_driver.launch.py

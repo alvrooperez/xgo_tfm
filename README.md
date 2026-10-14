@@ -1,35 +1,72 @@
-# XGO Mini 2S Autonomous Quadruped Robot (TFM)
+# XGO Mini 2S - Functional Hardware Branch (`funcional`)
 
-End-to-End Autonomous Navigation and Fleet Coordination System in Modern C++20 and ROS 2 Jazzy for the XGO Mini 2S quadruped robot dog.
+This branch contains the **production embedded deployment** for the physical **XGO Mini 2S quadruped robot** running on the **Raspberry Pi Compute Module 5 Lite (CM5)**.
 
-## System Overview
+## Key Hardware Specifications
 
-* **Robot Platform:** Luwu Dynamics XGO Mini 2S (12-DOF Quadruped, 1.2 kg)
-* **Compute Unit:** Raspberry Pi Compute Module 5 Lite (Quad-core ARM Cortex-A76 @ 2.4 GHz)
-* **Embedded Bus:** Hardware UART `/dev/ttyAMA0` (115200 baud, 8N1)
-* **LiDAR Sensor:** LDROBOT LD19 / D300 (360° 2D Laser Rangefinder, 12m)
-* **Software Core:** Modern C++20, ROS 2 Jazzy Jalisco, Gazebo Harmonic, Nav2 (MPPI Controller), Docker
-
----
-
-## Repository Branch Structure
-
-This repository follows a strict **Sim-to-Real** branch architecture:
-
-| Branch | Target Environment | Description |
-| :--- | :--- | :--- |
-| **`sim`** | Host PC / Simulation | Gazebo Harmonic digital twin, world models, sensor bridges, Nav2 MPPI simulation, SLAM mapping, and multi-robot testing. |
-| **`funcional`** | Physical Robot (Raspberry Pi CM5) | Production embedded deployment with Docker (`compose.yaml`), C++20 hardware driver over `/dev/ttyAMA0`, real LiDAR node, and edge navigation. |
+* **Robot Platform:** Luwu Dynamics XGO Mini 2S (12-DOF Quadruped)
+* **Compute Board:** Raspberry Pi Compute Module 5 Lite (Quad-core ARM Cortex-A76 @ 2.4 GHz)
+* **Embedded Serial Bus:** `/dev/ttyAMA0` (115200 baud, 8N1)
+* **Driver Performance:** High-performance C++20 core library (**20.5x faster** than vendor Python implementation, <0.5% CPU load)
 
 ---
 
-## Quick Navigation
+## Production Docker Deployment
 
-* To run the **Gazebo simulation & Nav2 on PC**:
+The physical robot runs a containerized ROS 2 Jazzy stack configured for ARM64 (`aarch64`) architecture with direct hardware device mapping and host networking.
+
+### Requirements on the Raspberry Pi CM5
+
+* OS: Debian 12 (Bookworm) / Ubuntu 24.04 aarch64
+* Docker & Docker Compose plugin installed:
   ```bash
-  git checkout sim
+  sudo apt update && sudo apt install -y docker.io docker-compose-plugin
+  sudo usermod -aG docker $USER
   ```
-* To deploy on the **physical robot using Docker**:
+* Disable any background Python scripts holding `/dev/ttyAMA0`:
   ```bash
-  git checkout funcional
+  sudo killall python python3 2>/dev/null || true
   ```
+
+---
+
+## Quick Start (Physical Robot)
+
+### 1. Build and Run Container
+From the repository root on the Raspberry Pi:
+```bash
+docker compose up --build -d
+```
+
+### 2. View Real-time Telemetry & Logs
+```bash
+docker compose logs -f
+```
+
+### 3. Check Active ROS 2 Topics
+In a container shell or on the host network:
+```bash
+ros2 topic list
+```
+Published topics:
+* `/odom` (`nav_msgs/msg/Odometry`) - Real-time 2D dead-reckoning odometry and TF transform
+* `/battery_state` (`sensor_msgs/msg/BatteryState`) - Battery percentage (0-100%) and voltage
+* `/imu/data` (`sensor_msgs/msg/Imu`) - Real-time Roll, Pitch, Yaw from internal MCU IMU
+
+Subscribed topics:
+* `/cmd_vel` (`geometry_msgs/msg/Twist`) - Safe velocity commands ($v_x, v_y, \omega$) with 0.5s watchdog timeout
+
+### 4. Stop the Robot
+```bash
+docker compose down
+```
+
+---
+
+## Native Build (Without Docker)
+
+```bash
+colcon build --packages-select xgo_driver_cpp
+source install/setup.bash
+ros2 launch xgo_driver_cpp xgo_driver.launch.py
+```
