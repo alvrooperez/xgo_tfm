@@ -18,7 +18,7 @@ services:
     environment:
       - SERIAL_PORT=${SERIAL_PORT:-/dev/ttyAMA0}
     command: >
-      bash -c "source /entrypoint.sh && ros2 launch xgo_driver_cpp xgo_driver.launch.py serial_port:=$${SERIAL_PORT:-/dev/ttyAMA0}"
+      bash -c "while [ ! -e $${SERIAL_PORT:-/dev/ttyAMA0} ]; do echo 'Waiting for serial port $${SERIAL_PORT:-/dev/ttyAMA0}...'; sleep 1; done; source /entrypoint.sh && ros2 launch xgo_driver_cpp xgo_driver.launch.py serial_port:=$${SERIAL_PORT:-/dev/ttyAMA0}"
 
   # ----------------------------------------------------------------------------
   # 2. Autonomous Navigation Microservice (Nav2 + MPPI)
