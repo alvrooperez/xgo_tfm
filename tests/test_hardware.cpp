@@ -3,14 +3,15 @@
 #include <thread>
 #include <chrono>
 
-int main() {
+int main(int argc, char* argv[]) {
     xgo::XgoMini2s robot;
-    std::cout << "Conectando a /dev/ttyAMA0 a 115200..." << std::endl;
-    if (!robot.connect("/dev/ttyAMA0", 115200)) {
-        std::cerr << "Error abriendo el puerto serie /dev/ttyAMA0!" << std::endl;
+    const std::string port = (argc > 1) ? argv[1] : "/dev/ttyAMA0";
+    std::cout << "Conectando a " << port << " a 115200..." << std::endl;
+    if (!robot.connect(port, 115200)) {
+        std::cerr << "Error abriendo el puerto serie " << port << "!" << std::endl;
         return 1;
     }
-    std::cout << "¡Conectado con exito a /dev/ttyAMA0!" << std::endl;
+    std::cout << "¡Conectado con exito a " << port << "!" << std::endl;
 
     // Leer bateria
     if (auto bat = robot.read_battery()) {

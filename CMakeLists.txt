@@ -55,6 +55,14 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/xgo_driver_node.cpp")
 endif()
 
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_hardware.cpp")
+  add_executable(test_hardware tests/test_hardware.cpp)
+  target_link_libraries(test_hardware xgo_driver)
+  install(TARGETS test_hardware
+    DESTINATION lib/${PROJECT_NAME}
+  )
+endif()
+
 # -----------------------------------------------------------------------------
 # 4. Instalación y Exportación para ROS 2
 # -----------------------------------------------------------------------------

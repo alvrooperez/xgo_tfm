@@ -1,13 +1,54 @@
 services:
+  # ----------------------------------------------------------------------------
+  # 1. Hardware Driver Microservice (C++20)
+  # ----------------------------------------------------------------------------
   xgo_driver:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: xgo_driver_cpp:jazzy
+      dockerfile: docker/Dockerfile.driver
+    image: xgo_driver:latest
     container_name: xgo_driver
     network_mode: host
     ipc: host
     restart: unless-stopped
-    devices:
-      - /dev/ttyAMA0:/dev/ttyAMA0
-    command: ros2 launch xgo_driver_cpp xgo_driver.launch.py
+    volumes:
+      - /tmp:/tmp
+      - /dev:/dev
+    privileged: true
+    environment:
+      - SERIAL_PORT=${SERIAL_PORT:-/dev/ttyAMA0}
+    command: >
+      bash -c "source /entrypoint.sh && ros2 launch xgo_driver_cpp xgo_driver.launch.py serial_port:=$${SERIAL_PORT:-/dev/ttyAMA0}"
+
+  # ----------------------------------------------------------------------------
+  # 2. Autonomous Navigation Microservice (Nav2 + MPPI)
+  # ----------------------------------------------------------------------------
+  xgo_nav:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.nav
+    image: xgo_nav:latest
+    container_name: xgo_nav
+    network_mode: host
+    ipc: host
+    restart: unless-stopped
+    depends_on:
+      - xgo_driver
+
+  # ----------------------------------------------------------------------------
+  # 3. Virtual Hardware Simulator (Mock ESP32 MCU)
+  # Only runs when activated via profile: docker compose --profile mock up
+  # ----------------------------------------------------------------------------
+  xgo_mock_mcu:
+    profiles: ["mock"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mock
+    image: xgo_mock_mcu:latest
+    container_name: xgo_mock_mcu
+    stdin_open: true
+    tty: true
+    volumes:
+      - /tmp:/tmp
+    network_mode: host
+    restart: unless-stopped

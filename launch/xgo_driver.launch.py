@@ -15,15 +15,25 @@ def generate_launch_description():
         description='Path al archivo YAML de parametros'
     )
 
+    serial_port_arg = DeclareLaunchArgument(
+        'serial_port',
+        default_value='/dev/ttyAMA0',
+        description='Puerto serie para la comunicacion con la MCU (ej. /dev/ttyAMA0 o /tmp/tty_robot)'
+    )
+
     driver_node = Node(
         package='xgo_driver_cpp',
         executable='xgo_driver_node',
         name='xgo_driver_node',
         output='screen',
-        parameters=[LaunchConfiguration('params_file')]
+        parameters=[
+            LaunchConfiguration('params_file'),
+            {'serial_port': LaunchConfiguration('serial_port')}
+        ]
     )
 
     return LaunchDescription([
         params_file_arg,
+        serial_port_arg,
         driver_node
     ])
