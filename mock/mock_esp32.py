@@ -470,12 +470,24 @@ class Ros2Bridge(threading.Thread):
             print("[ROS 2 Bridge] Active: Streaming /scan, robot TF, /goal_pose, and listening to /plan.")
 
             # Periodic scan & TF publisher at 10 Hz
-            while self.mcu.running and rclpy.ok():
+            while self.mcu.running and rclpy.ok() and self.node is not None:
                 time.sleep(0.10)
+                if not self.mcu.running or self.node is None:
+                    break
                 self._publish_scan_and_tf()
-                rclpy.spin_once(self.node, timeout_sec=0.01)
+                if self.node is not None and rclpy.ok():
+                    rclpy.spin_once(self.node, timeout_sec=0.01)
         except Exception as e:
-            print(f"[ROS 2 Bridge] Note: Bridge stopped ({e})")
+            pass
+
+    def stop(self):
+        try:
+            if self.node is not None:
+                n = self.node
+                self.node = None
+                n.destroy_node()
+        except Exception:
+            pass
 
     def _plan_callback(self, msg: Path):
         with self.mcu.lock:
@@ -1050,6 +1062,8 @@ class XgoGazeboSimGUI:
 
     def _on_close(self):
         self.mcu.close()
+        if self.bridge:
+            self.bridge.stop()
         self.root.destroy()
 
 
@@ -1112,9 +1126,13 @@ def main():
         try:
             gui = XgoGazeboSimGUI(mcu, room_map, bridge)
             gui.run()
-            return
         except Exception as e:
             print(f"Warning: Failed to launch Tkinter GUI ({e}), falling back to headless.")
+        finally:
+            mcu.close()
+            if bridge:
+                bridge.stop()
+        return
 
     try:
         run_headless(mcu)
@@ -1122,6 +1140,8 @@ def main():
         print("\nStopping Gazebo Mock MCU...")
     finally:
         mcu.close()
+        if bridge:
+            bridge.stop()
 
 
 if __name__ == "__main__":
