@@ -1,20 +1,28 @@
 # ==============================================================================
-# Microservice: XGO Mini 2S Virtual MCU (ESP32) Hardware Simulator
+# Microservice: XGO Mini 2S Virtual MCU & LiDAR Simulator
 # ==============================================================================
-FROM python:3.12-slim
+FROM ros:jazzy-ros-base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Python Tkinter, NumPy, and ROS 2 dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-tk \
+    python3-numpy \
+    ros-jazzy-sensor-msgs \
+    ros-jazzy-geometry-msgs \
+    ros-jazzy-nav-msgs \
+    ros-jazzy-tf2-ros \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-tk \
-    tk \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy mock simulator script
-COPY mock/mock_esp32.py /app/mock_esp32.py
-RUN chmod +x /app/mock_esp32.py
+# Copy mock script and room map
+COPY mock/ /app/mock/
+COPY maps/ /app/maps/
+RUN chmod +x /app/mock/mock_esp32.py
 
 ENV PYTHONUNBUFFERED=1
 
-ENTRYPOINT ["python3", "/app/mock_esp32.py"]
+ENTRYPOINT ["/bin/bash", "-c", "source /opt/ros/jazzy/setup.bash && python3 /app/mock/mock_esp32.py \"$@\"", "--"]
 CMD []
