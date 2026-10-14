@@ -34,6 +34,7 @@ try:
     from rclpy.node import Node
     from sensor_msgs.msg import LaserScan
     from geometry_msgs.msg import PoseStamped, TransformStamped
+    from nav_msgs.msg import Path
     import tf2_ros
     HAS_ROS2 = True
 except ImportError:
@@ -204,9 +205,10 @@ class XgoMockMCU:
         self.trail = []
         self.max_trail_len = 1200
 
-        # Autonomous Navigation Target (Optional point-and-click)
+        # Autonomous Navigation Target & Nav2 Path
         self.goal_x = None
         self.goal_y = None
+        self.planned_path = []  # [(x, y), ...] from Nav2 /plan
         self.auto_nav_enabled = True
 
         # Telemetry
@@ -397,6 +399,7 @@ class XgoMockMCU:
             self.yaw = 0.0
             self.goal_x = None
             self.goal_y = None
+            self.planned_path.clear()
             self.trail.clear()
 
     def set_manual_cmd(self, vx: float, vy: float, vyaw: float):
@@ -463,7 +466,8 @@ class Ros2Bridge(threading.Thread):
             t_laser.transform.rotation.w = 1.0
 
             self.static_tf_broadcaster.sendTransform([t_link, t_laser])
-            print("[ROS 2 Bridge] Active: Streaming /scan, robot TF, and /goal_pose.")
+            self.plan_sub = self.node.create_subscription(Path, "/plan", self._plan_callback, 10)
+            print("[ROS 2 Bridge] Active: Streaming /scan, robot TF, /goal_pose, and listening to /plan.")
 
             # Periodic scan & TF publisher at 10 Hz
             while self.mcu.running and rclpy.ok():
@@ -472,6 +476,10 @@ class Ros2Bridge(threading.Thread):
                 rclpy.spin_once(self.node, timeout_sec=0.01)
         except Exception as e:
             print(f"[ROS 2 Bridge] Note: Bridge stopped ({e})")
+
+    def _plan_callback(self, msg: Path):
+        with self.mcu.lock:
+            self.mcu.planned_path = [(float(p.pose.position.x), float(p.pose.position.y)) for p in msg.poses]
 
     def _publish_scan_and_tf(self):
         if not self.scan_pub:
@@ -811,6 +819,29 @@ class XgoGazeboSimGUI:
         self.canvas.create_text(gx_s + 18, gy_s - 16, text=f"GOAL ({gx:.2f}, {gy:.2f})",
                                 fill="#22c55e", font=("DejaVu Sans", 8, "bold"), anchor="w")
 
+    def _draw_planned_path(self, cw, ch):
+        with self.mcu.lock:
+            pts = list(self.mcu.planned_path)
+        if len(pts) < 2:
+            return
+
+        screen_pts = []
+        for wx, wy in pts:
+            sx, sy = self._world_to_screen(wx, wy, cw, ch)
+            screen_pts.extend([sx, sy])
+
+        # 1. Dark green outer halo for contrast against floor
+        self.canvas.create_line(*screen_pts, fill="#064e3b", width=6, capstyle=tk.ROUND, joinstyle=tk.ROUND)
+        # 2. Bright emerald line (Nav2 Planned Path)
+        self.canvas.create_line(*screen_pts, fill="#00ff88", width=3, capstyle=tk.ROUND, joinstyle=tk.ROUND)
+
+        # 3. Intermediate path dots
+        step = max(1, len(pts) // 25)
+        for i in range(0, len(pts), step):
+            wx, wy = pts[i]
+            sx, sy = self._world_to_screen(wx, wy, cw, ch)
+            self.canvas.create_oval(sx - 3, sy - 3, sx + 3, sy + 3, fill="#ffffff", outline="#059669")
+
     def _draw_lidar_scan(self, cw, ch):
         if not self.show_lidar:
             return
@@ -987,10 +1018,13 @@ class XgoGazeboSimGUI:
             # 2. Path trajectory trail
             self._draw_trail(cw, ch)
 
-            # 3. Navigation Goal Marker (if active)
+            # 3. Nav2 Global Planned Path
+            self._draw_planned_path(cw, ch)
+
+            # 4. Navigation Goal Marker (if active)
             self._draw_nav_goal(cw, ch)
 
-            # 4. LiDAR Laser scan impact points
+            # 5. LiDAR Laser scan impact points
             self._draw_lidar_scan(cw, ch)
 
             # 5. Realistic Robot Dog Model
