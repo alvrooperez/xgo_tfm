@@ -478,7 +478,8 @@ class Ros2Bridge(threading.Thread):
                 if self.node is not None and rclpy.ok():
                     rclpy.spin_once(self.node, timeout_sec=0.01)
         except Exception as e:
-            pass
+            import traceback
+            traceback.print_exc()
 
     def stop(self):
         try:
