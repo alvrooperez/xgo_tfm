@@ -130,6 +130,10 @@ public:
       "heartbeat", 10,
       [this](const std_msgs::msg::Header::SharedPtr /*msg*/) {
         blackboard_->set("last_heartbeat_time_s", this->now().seconds());
+        geometry_msgs::msg::PoseStamped curr;
+        if (blackboard_->get("current_pose", curr)) {
+          blackboard_->set("last_known_wifi_pose", curr);
+        }
       });
 
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
@@ -140,12 +144,8 @@ public:
         p.pose = msg->pose.pose;
         blackboard_->set("current_pose", p);
 
-        // Si la conexión Wi-Fi es saludable, actualizamos la miga de pan
-        double last_hb = 0.0;
-        if (blackboard_->get("last_heartbeat_time_s", last_hb)) {
-          if (this->now().seconds() - last_hb < 5.0) {
-            blackboard_->set("last_known_wifi_pose", p);
-          }
+        if (simulate_heartbeat_) {
+          blackboard_->set("last_known_wifi_pose", p);
         }
       });
 
@@ -200,7 +200,10 @@ public:
           }
           if (wps.empty()) {
             geometry_msgs::msg::PoseStamped curr;
-            blackboard_->get("current_pose", curr);
+            if (!blackboard_->get("current_pose", curr)) {
+              curr.pose.position.x = 0.0;
+              curr.pose.position.y = 0.0;
+            }
             double cx = curr.pose.position.x;
             double cy = curr.pose.position.y;
             for (auto offset : {std::make_pair(0.8, 0.0), std::make_pair(0.8, 0.6), std::make_pair(0.0, 0.6), std::make_pair(0.0, 0.0)}) {

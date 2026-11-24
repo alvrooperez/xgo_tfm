@@ -18,6 +18,12 @@ def generate_launch_description():
         description='Directory where BehaviorTree .btlog files are recorded'
     )
 
+    simulate_heartbeat_arg = DeclareLaunchArgument(
+        'simulate_heartbeat',
+        default_value='true',
+        description='Keep Wi-Fi heartbeat simulated internally (set false to test real /heartbeat watchdog)'
+    )
+
     # Configuración de los 3 robots de la brigada RASTREO
     robots = [
         {'name': 'robot1', 'groot_port': 1667},
@@ -25,7 +31,7 @@ def generate_launch_description():
         {'name': 'robot3', 'groot_port': 1669},
     ]
 
-    actions = [log_dir_arg]
+    actions = [log_dir_arg, simulate_heartbeat_arg]
     for r in robots:
         node = Node(
             package='xgo_behavior_tree',
@@ -36,6 +42,7 @@ def generate_launch_description():
             parameters=[{
                 'tree_xml_path': xml_path,
                 'groot_port': r['groot_port'],
+                'simulate_heartbeat': LaunchConfiguration('simulate_heartbeat'),
                 'log_file': PathJoinSubstitution([
                     LaunchConfiguration('log_dir'),
                     f"ejecucion_{r['name']}.btlog"

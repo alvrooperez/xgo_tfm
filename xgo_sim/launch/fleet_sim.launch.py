@@ -58,6 +58,12 @@ def generate_launch_description():
         description='Launch the 3 Behavior Tree executors for robot1, robot2, robot3'
     )
 
+    simulate_heartbeat_arg = DeclareLaunchArgument(
+        'simulate_heartbeat',
+        default_value='true',
+        description='Keep Wi-Fi heartbeat simulated internally in BT executors'
+    )
+
     # Brigada RASTREO: 3 cuadrúpedos XGO Mini 2S en Gazebo Harmonic
     robots = [
         {
@@ -91,6 +97,7 @@ def generate_launch_description():
         use_sim_time_arg,
         headless_arg,
         launch_bt_arg,
+        simulate_heartbeat_arg,
         OpaqueFunction(function=launch_gz),
     ]
 
@@ -151,6 +158,9 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(
                 os.path.join(pkg_bt, 'launch', 'fleet_behavior_trees.launch.py')
             ),
+            launch_arguments={
+                'simulate_heartbeat': LaunchConfiguration('simulate_heartbeat')
+            }.items(),
             condition=IfCondition(LaunchConfiguration('launch_bt'))
         )
         actions.append(bt_launch)

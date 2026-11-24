@@ -218,9 +218,9 @@ public:
 
   NavigateThroughPoses(const std::string& name, const BT::NodeConfig& config)
     : BT::StatefulActionNode(name, config),
+      current_wp_idx_(0),
       goal_done_(false),
       goal_success_(false),
-      current_wp_idx_(0),
       use_fallback_controller_(false)
   {
   }
@@ -390,13 +390,14 @@ private:
 };
 
 /**
- * @brief Acción para ejecutar maniobras de desatasco (CLEAR_COSTMAP, BACKUP, SPIN).
+ * @brief Acción asíncrona para ejecutar maniobras de desatasco (CLEAR_COSTMAP, BACKUP, SPIN).
  */
-class RecoverNavigation : public BT::SyncActionNode
+class RecoverNavigation : public BT::StatefulActionNode
 {
 public:
   RecoverNavigation(const std::string& name, const BT::NodeConfig& config)
-    : BT::SyncActionNode(name, config)
+    : BT::StatefulActionNode(name, config),
+      duration_s_(0.0)
   {
   }
 
@@ -407,29 +408,81 @@ public:
     };
   }
 
-  BT::NodeStatus tick() override
+  BT::NodeStatus onStart() override
   {
-    std::string rec_type = "CLEAR_COSTMAP";
-    getInput("recovery_type", rec_type);
+    rec_type_ = "CLEAR_COSTMAP";
+    getInput("recovery_type", rec_type_);
 
     rclcpp::Node::SharedPtr node;
     if (getFromBB(config().blackboard, "node", node) && node) {
-      RCLCPP_INFO(node->get_logger(), "[RecoverNavigation] Ejecutando maniobra: %s", rec_type.c_str());
+      RCLCPP_INFO(node->get_logger(), "[RecoverNavigation] Iniciando maniobra: %s", rec_type_.c_str());
+      if (!cmd_vel_pub_) {
+        cmd_vel_pub_ = node->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
+      }
     }
 
-    return BT::NodeStatus::SUCCESS;
+    if (rec_type_ == "BACKUP") {
+      duration_s_ = 1.5;
+    } else if (rec_type_ == "SPIN") {
+      duration_s_ = 2.0;
+    } else {
+      return BT::NodeStatus::SUCCESS;
+    }
+
+    start_time_ = std::chrono::steady_clock::now();
+    return BT::NodeStatus::RUNNING;
   }
+
+  BT::NodeStatus onRunning() override
+  {
+    double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time_).count();
+    if (elapsed >= duration_s_) {
+      publishStop();
+      return BT::NodeStatus::SUCCESS;
+    }
+
+    if (cmd_vel_pub_) {
+      geometry_msgs::msg::Twist cmd;
+      if (rec_type_ == "BACKUP") {
+        cmd.linear.x = -0.12;
+      } else if (rec_type_ == "SPIN") {
+        cmd.angular.z = 0.8;
+      }
+      cmd_vel_pub_->publish(cmd);
+    }
+    return BT::NodeStatus::RUNNING;
+  }
+
+  void onHalted() override
+  {
+    publishStop();
+  }
+
+private:
+  void publishStop()
+  {
+    if (cmd_vel_pub_) {
+      geometry_msgs::msg::Twist stop_msg;
+      cmd_vel_pub_->publish(stop_msg);
+    }
+  }
+
+  std::string rec_type_;
+  double duration_s_;
+  std::chrono::time_point<std::chrono::steady_clock> start_time_;
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
 };
 
 /**
- * @brief Acción de barrido visual/sensorial en el sitio.
+ * @brief Acción de barrido visual/sensorial en el sitio (rotación 360° controlada).
  */
 class ScanArea : public BT::StatefulActionNode
 {
 public:
   ScanArea(const std::string& name, const BT::NodeConfig& config)
     : BT::StatefulActionNode(name, config),
-      duration_s_(3.0)
+      duration_s_(3.0),
+      angular_speed_(0.6)
   {
   }
 
@@ -443,6 +496,19 @@ public:
   BT::NodeStatus onStart() override
   {
     getInput("duration_s", duration_s_);
+    if (duration_s_ <= 0.0) {
+      return BT::NodeStatus::SUCCESS;
+    }
+
+    rclcpp::Node::SharedPtr node;
+    if (getFromBB(config().blackboard, "node", node) && node) {
+      if (!cmd_vel_pub_) {
+        cmd_vel_pub_ = node->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
+      }
+      RCLCPP_INFO(node->get_logger(), "[ScanArea] Iniciando barrido sensorial de %.1fs", duration_s_);
+    }
+
+    angular_speed_ = std::clamp((2.0 * M_PI) / duration_s_, 0.3, 0.8);
     start_time_ = std::chrono::steady_clock::now();
     return BT::NodeStatus::RUNNING;
   }
@@ -452,16 +518,36 @@ public:
     auto now = std::chrono::steady_clock::now();
     double elapsed = std::chrono::duration<double>(now - start_time_).count();
     if (elapsed >= duration_s_) {
+      publishStop();
       return BT::NodeStatus::SUCCESS;
+    }
+
+    if (cmd_vel_pub_) {
+      geometry_msgs::msg::Twist cmd;
+      cmd.angular.z = angular_speed_;
+      cmd_vel_pub_->publish(cmd);
     }
     return BT::NodeStatus::RUNNING;
   }
 
-  void onHalted() override {}
+  void onHalted() override
+  {
+    publishStop();
+  }
 
 private:
+  void publishStop()
+  {
+    if (cmd_vel_pub_) {
+      geometry_msgs::msg::Twist stop_msg;
+      cmd_vel_pub_->publish(stop_msg);
+    }
+  }
+
   double duration_s_;
+  double angular_speed_;
   std::chrono::time_point<std::chrono::steady_clock> start_time_;
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
 };
 
 /**

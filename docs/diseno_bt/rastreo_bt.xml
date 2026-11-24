@@ -29,13 +29,15 @@
       </Sequence>
 
       <!-- RAMA 3: CONTINGENCIA DE ENLACE WI-FI -->
-      <Sequence name="Branch3_Wifi">
+      <ReactiveSequence name="Branch3_Wifi">
         <Inverter name="Invert_WifiStatus">
           <HasWifiConnection timeout_s="5.0" name="Check_Wifi_Connection"/>
         </Inverter>
-        <Wait duration_s="5.0" name="Wait_WifiGracePeriod"/>
-        <NavigateToPose goal="{last_known_wifi_pose}" name="Retrace_ToLastWifiBreadcrumb"/>
-      </Sequence>
+        <Sequence name="Wifi_RecoverySteps">
+          <Wait duration_s="5.0" name="Wait_WifiGracePeriod"/>
+          <NavigateToPose goal="{last_known_wifi_pose}" name="Retrace_ToLastWifiBreadcrumb"/>
+        </Sequence>
+      </ReactiveSequence>
 
       <!-- RAMA 4: DESPACHADOR DE MISIONES (TASK DISPATCHER) -->
       <Sequence name="Branch4_Missions">

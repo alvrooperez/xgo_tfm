@@ -34,7 +34,39 @@ Como se observa, el nuevo controlador reduce el tiempo total de procesamiento en
 
 Se ha verificado experimentalmente el enlace serie bidireccional entre la Raspberry Pi CM5 y la placa controladora de los cuadrúpedos a través de \texttt{/dev/ttyAMA0}. Las pruebas confirman la recepción continua de la IMU y la odometría de los servomotores a 115200 baudios, así como la actuación correcta del mecanismo de parada por timeout del watchdog.
 
-\section{Validación en simulación (SIL)}
+\section{Validación en simulación (SIL) sobre Gazebo Harmonic}
 \label{sec:validacion_sil}
 
-\textit{[Sección esquemática: Resultados de las pruebas de navegación reactiva en Gazebo y verificación del emulador Mock MCU en bucle cerrado].}
+Para validar el comportamiento integral de la brigada multi-robot sin depender del emulador ligero de MCU, se ha ejecutado una batería automatizada de ocho pruebas de integración (\texttt{scripts/test\_bt\_gazebo.py}) sobre \textbf{Gazebo Harmonic} con tres cuadrúpedos \textit{XGO Mini 2S} operando simultáneamente en namespaces aislados (\texttt{/robot1}, \texttt{/robot2}, \texttt{/robot3}), puente \texttt{ros\_gz\_bridge} y tres instancias independientes del ejecutor \texttt{BehaviorTree.CPP~v4} (\texttt{bt\_executor\_node}) con registro de trazas \texttt{.btlog} para Groot2.
+
+El objetivo de esta batería es verificar en bucle cerrado las cinco ramas prioritarias del árbol reactivo \texttt{rastreo\_bt.xml}: seguridad crítica (Rama~1), contingencia energética (Rama~2), pérdida de enlace Wi-Fi (Rama~3), despacho concurrente de misiones M2/M3/M6 (Rama~4) y reposo seguro (Rama~5). La Tabla~\ref{tab:resultados_sil_gazebo} resume los resultados obtenidos.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Resultados de la batería automatizada de validación SIL de los Behavior Trees sobre Gazebo Harmonic (3 robots concurrentes).}
+    \label{tab:resultados_sil_gazebo}
+    \small
+    \begin{tabular}{clcl}
+        \toprule
+        \textbf{\#} & \textbf{Escenario / Rama evaluada} & \textbf{Estado} & \textbf{Métrica observada en Gazebo} \\
+        \midrule
+        1 & Conectividad Gazebo $\leftrightarrow$ 3 BTs & \textbf{PASS} & Odometría activa en R1, R2 y R3 \\
+        2 & Rama 4: M3 \texttt{GOTO\_POINT} concurrente & \textbf{PASS} & $t=4.9$\,s; error final $0.24$--$0.30$\,m \\
+        3 & Rama 1: Preempción \texttt{E-STOP} (R1) & \textbf{PASS} & Alerta y parada inmediata (\texttt{cmd\_vel}=0) \\
+        4 & Rama 1: Vuelco IMU \texttt{HasFallen} $>60^\circ$ (R3) & \textbf{PASS} & Alerta \textit{Rollover/Fallen} y parada \\
+        5 & Rama 2: Batería crítica ($10\%$) $\rightarrow$ RTB (R2) & \textbf{PASS} & Retorno al dock ($0.58 \rightarrow 0.25$\,m) \\
+        6 & Rama 3: Pérdida Wi-Fi $\rightarrow$ \textit{Retrace} (R2) & \textbf{PASS} & Alejado $0.45$\,m $\rightarrow$ retorno a $0.32$\,m \\
+        7 & Rama 4: M2 \texttt{SWEEP\_AREA} (3 waypoints, R3) & \textbf{PASS} & $t=10.8$\,s; 3/3 waypoints alcanzados \\
+        8 & Rama 4: M6 \texttt{RTB} explícito + logs Groot2 & \textbf{PASS} & \texttt{START\_RTB}/\texttt{DOCKED} + 3 \texttt{.btlog} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Incidencias detectadas y corregidas durante la validación SIL}
+
+La ejecución sistemática en Gazebo con el watchdog real de comunicaciones (\texttt{simulate\_heartbeat:=false}) permitió detectar y corregir dos defectos relevantes antes del despliegue físico:
+
+\begin{itemize}
+    \item \textbf{Reactividad de la Rama~3 (\texttt{Branch3\_Wifi}):} inicialmente modelada como un \texttt{Sequence} plano, impedía abortar el periodo de gracia de 5\,s si el enlace Wi-Fi se recuperaba antes de vencer. Asimismo, cambiar el nodo directamente a \texttt{ReactiveSequence} reiniciaba \texttt{Wait\_WifiGracePeriod} en cada \textit{tick}. La solución definitiva encapsula \texttt{Wait} y \texttt{NavigateToPose} dentro de un subnodo \texttt{Sequence} bajo un \texttt{ReactiveSequence}, logrando cancelación instantánea al recuperar el \textit{heartbeat} sin reiniciar la temporización.
+    \item \textbf{Fijación de la miga de pan Wi-Fi (\texttt{last\_known\_wifi\_pose}):} actualizar esta pose desde el callback de odometría durante la ventana de timeout desplazaba el punto seguro hacia la zona sin cobertura. Se vinculó su actualización estrictamente a la recepción efectiva de paquetes en \texttt{/heartbeat}, garantizando que el robot retrocede al último punto con conectividad real confirmada.
+\end{itemize}
