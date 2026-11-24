@@ -12,6 +12,7 @@ Cubre todas las ramas prioritarias de rastreo_bt.xml:
   8. Rama 4 (M6 RTB) explícito en robot1 + comprobación de ficheros .btlog en /tmp/xgo_bt_logs
 """
 
+import argparse
 import math
 import os
 import sys
@@ -62,6 +63,8 @@ class BTGazeboTestSuite(Node):
         }
 
         self.odom: Dict[str, Optional[Tuple[float, float]]] = {r: None for r in self.robots}
+        self.trajectories: Dict[str, List[Tuple[float, float]]] = {r: [] for r in self.robots}
+        self.events: List[Tuple[str, float, float, str]] = []
         self.last_cmd_vel: Dict[str, Optional[Tuple[float, float]]] = {r: None for r in self.robots}
         self.alerts: List[str] = []
 
@@ -85,6 +88,9 @@ class BTGazeboTestSuite(Node):
     def _odom_cb(self, robot: str, msg: Odometry):
         p = msg.pose.pose.position
         self.odom[robot] = (p.x, p.y)
+        traj = self.trajectories[robot]
+        if not traj or math.hypot(p.x - traj[-1][0], p.y - traj[-1][1]) > 0.015:
+            traj.append((p.x, p.y))
 
     def _cmd_vel_cb(self, robot: str, msg: Twist):
         self.last_cmd_vel[robot] = (msg.linear.x, msg.angular.z)
@@ -203,6 +209,8 @@ class BTGazeboTestSuite(Node):
             timeout_s=5.0,
         )
         self.set_estop("robot1", True)
+        if self.odom["robot1"]:
+            self.events.append(("E-STOP (R1)", *self.odom["robot1"], "#d95f02"))
         estop_ok = self.wait_until(
             lambda: any("E-STOP" in a for a in self.alerts)
             and self.last_cmd_vel["robot1"] is not None
@@ -234,6 +242,8 @@ class BTGazeboTestSuite(Node):
             timeout_s=5.0,
         )
         # Publicar varias veces la IMU volcada (75°) para sobrescribir la IMU nominal de Gazebo
+        if self.odom["robot3"]:
+            self.events.append(("HasFallen (R3)", *self.odom["robot3"], "#1b9e77"))
         fall_ok = False
         end_t = time.time() + 4.0
         while time.time() < end_t:
@@ -293,6 +303,7 @@ class BTGazeboTestSuite(Node):
         self._publish_heartbeats()
         self.spin_for(0.2)
         breadcrumb = self.odom["robot2"]
+        self.events.append(("Wi-Fi Breadcrumb (R2)", *breadcrumb, "#2b6cb0"))
         # Quitamos el heartbeat a robot2 y le ordenamos avanzar hacia -Y (dirección en la que ya mira tras el RTB)
         self.hb_enabled.discard("robot2")
         self.send_task("robot2", f"GOTO_POINT {breadcrumb[0]:.2f} {breadcrumb[1] - 1.2:.2f}")
@@ -371,11 +382,78 @@ class BTGazeboTestSuite(Node):
         return results
 
 
+def save_trajectory_plot(node: BTGazeboTestSuite, output_path: str):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Circle, Rectangle
+
+    fig, ax = plt.subplots(figsize=(7.2, 6.2), dpi=300)
+
+    # Paredes de room.sdf (8m x 8m) y obstáculos reales
+    ax.add_patch(Rectangle((-4.0, -4.0), 8.0, 8.0, fill=False, edgecolor="#444444", linewidth=2.0, label="Perímetro room.sdf (8×8 m)"))
+    ax.add_patch(Circle((1.5, 1.5), 0.3, facecolor="#a8d5ba", edgecolor="#2d6a4f", linewidth=1.2, label="Obstáculo: pillar_1"))
+    ax.add_patch(Rectangle((-1.9, 0.9), 0.8, 1.2, facecolor="#f4b6b6", edgecolor="#9b2226", linewidth=1.2, label="Obstáculo: box_obstacle_1"))
+
+    styles = {
+        "robot1": ("#e66101", "Robot 1 (Naranja): M3, E-STOP, M6 RTB"),
+        "robot2": ("#1f78b4", "Robot 2 (Azul): M3, Bat. RTB, Wi-Fi Retrace"),
+        "robot3": ("#2ca25f", "Robot 3 (Verde): M3, HasFallen, M2 SWEEP"),
+    }
+
+    for r, (color, label) in styles.items():
+        pts = node.trajectories[r]
+        if not pts:
+            continue
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        ax.plot(xs, ys, color=color, linewidth=2.0, alpha=0.9, label=label)
+        ax.scatter(xs[0], ys[0], color=color, marker="o", s=55, zorder=5, edgecolor="black", linewidth=0.7)
+        ax.scatter(xs[-1], ys[-1], color=color, marker="s", s=55, zorder=5, edgecolor="black", linewidth=0.7)
+
+    # Eventos clave de contingencia
+    offsets_txt = [(8, 8), (8, -14), (8, 8)]
+    for idx, (lbl, ex, ey, col) in enumerate(node.events):
+        ax.scatter(ex, ey, color=col, marker="*", s=140, zorder=6, edgecolor="black", linewidth=0.6)
+        dx, dy = offsets_txt[idx % len(offsets_txt)]
+        ax.annotate(
+            lbl,
+            xy=(ex, ey),
+            xytext=(dx, dy),
+            textcoords="offset points",
+            fontsize=8.5,
+            fontweight="bold",
+            color="#222222",
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec=col, alpha=0.9),
+        )
+
+    ax.set_xlim(-2.6, 2.6)
+    ax.set_ylim(-1.6, 2.4)
+    ax.set_aspect("equal", adjustable="box")
+    ax.grid(True, linestyle="--", alpha=0.4)
+    ax.set_xlabel("Posición X en Gazebo (m)")
+    ax.set_ylabel("Posición Y en Gazebo (m)")
+    ax.set_title("Trayectorias reales SIL en Gazebo Harmonic (3 robots + 8 pruebas BT)")
+    ax.legend(loc="lower right", fontsize=7.8, framealpha=0.92)
+
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=300)
+    plt.close(fig)
+    print(f"[PLOT] Figura de trayectorias guardada en: {output_path}")
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Suite de pruebas BT en Gazebo Harmonic")
+    parser.add_argument("--plot", default="", help="Ruta PNG donde guardar el mapa de trayectorias")
+    args = parser.parse_args()
+
     rclpy.init()
     node = BTGazeboTestSuite()
     try:
         results = node.run_all()
+        if args.plot:
+            save_trajectory_plot(node, args.plot)
     finally:
         node.destroy_node()
         rclpy.shutdown()
