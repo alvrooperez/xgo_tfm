@@ -1,0 +1,22 @@
+\chapter{Orquestador y Coordinación de Flota Multi-Robot}
+\label{chap:orquestador}
+
+\section{Arquitectura del orquestador central en C++20}
+\label{sec:orquestador_c20}
+
+El orquestador de flota actúa como el puesto de mando centralizado que supervisa el estado global de la brigada de rescate. Diseñado en C++20, centraliza la recepción de telemetría de los tres cuadrúpedos y gestiona la asignación óptima de misiones.
+
+\section{Mecanismo de despacho de órdenes (ROS 2 Actions)}
+\label{sec:despacho_ordenes}
+
+La interacción entre el orquestador global y los árboles de comportamiento individuales se implementa mediante interfaces de acción estándar de ROS 2 (\texttt{ExecuteTask.action}):
+\begin{itemize}
+    \item \textbf{Meta (\textit{Goal}):} Identificador de la tarea, tipo de misión (\texttt{task\_type}) y datos geométricos (objetivo o lista de waypoints).
+    \item \textbf{Retroalimentación (\textit{Feedback}):} Porcentaje de avance, posición instantánea del robot y estado de salud operativa.
+    \item \textbf{Resultado (\textit{Result}):} Confirmación de éxito (\texttt{SUCCESS}), aborto por contingencia o reporte de causas de fallo.
+\end{itemize}
+
+\section{Sincronización y prevención de conflictos entre agentes}
+\label{sec:sincronizacion_agentes}
+
+\textit{[Sección esquemática: Reglas de prioridad para evitar bloqueos mutuos en pasillos y coordinación para misiones de relevo y marcaje cooperativo].}

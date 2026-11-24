@@ -1,0 +1,31 @@
+\chapter{Arquitectura Software del Sistema}
+\label{chap:arquitectura}
+
+En este capítulo se describe el diseño modular de la pila de software embarcada en los cuadrúpedos, el despliegue en microservicios contenerizados y los fundamentos del controlador de bajo nivel en C++20.
+
+\section{Arquitectura en microservicios desacoplados (Docker)}
+\label{sec:docker_arch}
+
+Para evitar que un bloqueo en los algoritmos de navegación o SLAM comprometa la estabilidad y seguridad física del robot, el sistema se estructura en tres contenedores Docker independientes que comparten la red local del host (\texttt{Host Network}) sobre ROS 2 Jazzy:
+
+\begin{enumerate}
+    \item \textbf{\texttt{xgo\_driver}:} Contenedor dedicado al driver de comunicaciones en tiempo real en C++20. Gestiona el puerto serie físico (\texttt{/dev/ttyAMA0}), un temporizador de seguridad (\textit{watchdog} de 0.5\,s) y publica la odometría, telemetría de batería y datos de la IMU.
+    \item \textbf{\texttt{xgo\_nav}:} Contenedor de la pila de navegación Nav2, configurado con el controlador predictivo omnidireccional MPPI (\textit{Model Predictive Path Integral}), localización probabilística AMCL y mapas de costes estáticos y dinámicos.
+    \item \textbf{\texttt{xgo\_mock\_mcu}:} Emulador virtual del microcontrolador de bajo nivel para pruebas en lazo cerrado (\textit{Software-in-the-Loop}, SIL), permitiendo simular las respuestas del robot sobre un pseudoterminal sin necesidad del hardware físico.
+\end{enumerate}
+
+\section{Controlador de bajo nivel: \texttt{xgo\_driver\_cpp}}
+\label{sec:driver_cpp}
+
+El paquete \texttt{xgo\_driver\_cpp} sustituye a la librería en Python original proporcionando comunicación serie asíncrona mediante el estándar POSIX \texttt{termios} (modo raw 8N1). Sus características principales incluyen:
+
+\begin{itemize}
+    \item \textbf{Máquina de estados finitos (FSM):} Decodificación continua de paquetes entrantes tolerante a ruido e interferencias en la línea UART.
+    \item \textbf{Gestión de recursos mediante RAII:} Adquisición y cierre determinista de los descriptores de archivo serie, previniendo fugas de memoria o puertos bloqueados.
+    \item \textbf{Parada segura automática:} Incorporación de un watchdog hardware/software que comanda velocidad nula a los servomotores si se interrumpe la emisión de consignas durante más de 500\,ms.
+\end{itemize}
+
+\section{Entorno de simulación y emulador SIL}
+\label{sec:simulacion_mock}
+
+\textit{[Sección esquemática: Descripción del modelo URDF en Gazebo/RViz2 y de la interfaz del emulador Mock MCU con cuadro de mando ASCII para validación preliminar en local].}

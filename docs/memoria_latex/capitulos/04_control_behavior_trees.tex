@@ -1,0 +1,35 @@
+\chapter{Control Reactivo Individual mediante Behavior Trees}
+\label{chap:behavior_trees}
+
+En este capítulo se formaliza la toma de decisiones autónoma y la respuesta reactiva a fallos en cada cuadrúpedo mediante árboles de comportamiento (\textit{Behavior Trees}), empleando el estándar de la industria \texttt{BehaviorTree.CPP v4}.
+
+\section{Metodología de diseño en cinco fases}
+\label{sec:metodologia_bt}
+
+El diseño del árbol de comportamiento se articula siguiendo una metodología descendente (\textit{Top-Down}) en cinco fases:
+
+\begin{enumerate}
+    \item \textbf{Fase 1: Análisis de escenarios y modos de fallo.} Identificación del camino nominal (\textit{Happy Path}) y clasificación de las contingencias operativas (U1 a U9: caídas, desconexión Wi-Fi, batería baja, parada de emergencia, etc.).
+    \item \textbf{Fase 2: Catálogo de nodos hoja y contrato del Blackboard.} Definición estricta de las Condiciones (de solo lectura), Acciones (asíncronas con duración) y variables compartidas tipadas.
+    \item \textbf{Fase 3: Estructuración Top-Down y priorización.} Ordenación jerárquica de izquierda a derecha (Seguridad $\rightarrow$ Batería $\rightarrow$ Enlace Wi-Fi $\rightarrow$ Despacho de misión $\rightarrow$ Reposo), delegando eventos sensoriales de víctima al orquestador.
+    \item \textbf{Fase 4: Modelado visual XML (Groot2).} Creación de la descripción estandarizada en formato XML (\texttt{BehaviorTree.CPP v4}) con definición de subárboles modulares y catálogo de tipos para validación visual previa.
+    \item \textbf{Fase 5: Implementación C++20.} Programación modular de las clases C++ especializadas conectadas a los tópicos y acciones de ROS 2.
+\end{enumerate}
+
+\section{Catálogo de misiones operativas (M1 a M6)}
+\label{sec:catalogo_misiones}
+
+El árbol de cada robot cuadrúpedo es capaz de ejecutar seis misiones operativas asignadas por el orquestador global:
+\begin{itemize}
+    \item \textbf{M1: Exploración activa de mapa desconocido} (Active SLAM con \texttt{slam\_toolbox}).
+    \item \textbf{M2: Barrido sistemático en mapa conocido} (Cobertura coordinada de áreas libres).
+    \item \textbf{M3: Despacho multi-punto óptimo} (Navegación punto a punto evitando colisiones mutuas).
+    \item \textbf{M4: Marcaje y balizamiento de víctima} (Triangulación y transmisión de pose segura).
+    \item \textbf{M5: Despliegue de cable guía físico} (Accionamiento de brazo y tendido de línea de vida).
+    \item \textbf{M6: Relevo dinámico de batería y retorno a base} (Evacuación de unidades en descarga crítica).
+\end{itemize}
+
+\section{Estructura interna del despachador de tareas}
+\label{sec:task_dispatcher}
+
+\textit{[Sección esquemática: Detalle de la rama selectora de subárboles mediante la variable \texttt{task\_type} del Blackboard y condiciones \texttt{IsTaskType} para ejecución aislada de cada misión].}

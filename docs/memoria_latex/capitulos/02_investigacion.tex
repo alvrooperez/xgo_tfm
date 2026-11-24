@@ -1,0 +1,85 @@
+\chapter{Investigación previa y plataforma robótica}
+\label{chap:investigacion}
+
+En este capítulo se describe la plataforma de hardware utilizada para la brigada de búsqueda y rescate, las especificaciones sensoriales de las unidades, el software original proporcionado por el fabricante y la justificación técnica que motivó el desarrollo de un controlador nativo en C++20.
+
+\section{Plataforma física: Flota de cuadrúpedos XGO Mini 2S}
+\label{sec:perros}
+
+El proyecto se sustenta sobre una flota homogénea compuesta por \textbf{tres robots cuadrúpedos idénticos} del modelo \textit{XGO Mini 2S}, desarrollados por \textit{Luwu Dynamics} (\url{https://wiki.xgorobot.com/kb/the-xgo-series-robot/cmpidwcrq000jhjqr5awou1iy}). 
+
+Cada una de las tres unidades cuenta con la siguiente configuración física y sensorial:
+
+\subsection{Unidad de procesamiento a bordo}
+\begin{itemize}
+    \item \textbf{Computador de a bordo:} Raspberry Pi Compute Module 5 Lite (CM5). Este módulo centraliza las tareas de percepción, localización y toma de decisiones a bordo, operando como nodo de cómputo en el borde (\textit{Edge Computing}).
+\end{itemize}
+
+\subsection{Sensores cinemáticos e inerciales}
+\begin{itemize}
+    \item \textbf{Unidad de Medición Inercial (IMU):} Sensor de 6 grados de libertad (giróscopo de 3 ejes y acelerómetro de 3 ejes), imprescindible para la detección de desniveles, estimación de actitud y detección de vuelcos.
+    \item \textbf{Sensores de posición articular:} Encoders integrados en los servomotores de las cuatro extremidades para el control cinemático de bajo nivel.
+\end{itemize}
+
+\subsection{Sensor LiDAR 2D}
+Para la construcción de mapas métricos y la evasión reactiva de obstáculos, cada robot dispone de un sensor LiDAR 2D montado sobre el chasis superior. Sus especificaciones técnicas detalladas se resumen en la Tabla~\ref{tab:especificaciones_lidar}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Especificaciones técnicas del sensor LiDAR embarcado en los robots XGO Mini 2S.}
+    \label{tab:especificaciones_lidar}
+    \begin{tabular}{p{5.5cm} p{3.5cm} p{5.5cm}}
+        \toprule
+        \textbf{Parámetro} & \textbf{Valor} & \textbf{Notas} \\
+        \midrule
+        Radio de alcance (\textit{Ranging Radius}) & 0.05 -- 12\,m & @80\% reflectividad; 0.05 -- 4\,m @10\% reflectividad \\
+        Precisión de medida & $\pm 20$\,mm & Error sistemático en rango completo \\
+        Frecuencia de escaneo & 6 -- 12\,Hz & Ajustable por software (defecto 6\,Hz) \\
+        Frecuencia de muestreo & 4000\,Hz & Tasa de adquisición angular \\
+        Ángulo de escaneo & $360^\circ$ & Cobertura omnidireccional en el plano \\
+        Resistencia a luz ambiental & 60000\,Lux & Inmunidad frente a fuentes de luz externa \\
+        Resolución angular & $0.54^\circ$ & Discretización angular por muestra \\
+        Seguridad láser & FDA Class I & Inocuo para la vista (\textit{Eye safe}) \\
+        Voltaje de alimentación & 4.8\,V -- 5.2\,V & Típico 5.0\,V \\
+        Interfaz de comunicación & UART / GH1.25-4P & Protocolo serie asíncrono \\
+        Dimensiones & $38.6 \times 38.6 \times 33.9$\,mm & Formato compacto \\
+        Peso & Aprox. 45\,g & Carga útil mínima sobre el robot \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Carga útil adicional: Brazo robótico}
+Las tres unidades van equipadas con el **brazo robótico articulado con pinza (\textit{gripper})** oficial de Luwu Dynamics. Este actuador dota a cada cuadrúpedo de capacidad de manipulación física en el entorno, permitiendo ejecutar tareas de agarre, despeje de pequeños obstáculos o el despliegue del carrete de cable guía (Misión M5 del proyecto RASTREO).
+
+---
+
+\section{El SDK original del fabricante y análisis del software base}
+\label{sec:sdk}
+
+El fabricante proporciona una distribución de sistema operativo basada en Raspberry Pi OS junto con un manual de referencia (\url{https://wiki.xgorobot.com/kb/the-xgo-series-robot/cmqcbgk9800178ffsqm8jseze}). La capa de comunicación oficial provista por Luwu Dynamics se basa en una librería interpretada en Python (\texttt{xgolib\_dog.py}), la cual interactúa con la placa controladora de bajo nivel del perro a través del puerto serie UART (\texttt{/dev/ttyAMA0}).
+
+\section{Justificación técnica del desarrollo del nuevo driver C++20}
+\label{sec:justificacion_cpp}
+
+Si bien el SDK original en Python resulta funcional para demostraciones básicas y teleoperación elemental, en este trabajo se optó por rediseñar e implementar un controlador de comunicaciones completamente nuevo en \textbf{C++20 moderno} (\texttt{xgo\_driver\_cpp}). 
+
+Esta decisión técnica se fundamenta en los siguientes aspectos:
+
+\begin{enumerate}
+    \item \textbf{Optimización de recursos en la Raspberry Pi CM5:} En un escenario de rescate real, el computador de a bordo debe ejecutar de forma simultánea algoritmos computacionalmente intensivos (SLAM con \texttt{slam\_toolbox}, planificación y seguimiento de trayectorias locales mediante \texttt{Nav2 MPPI}, y el motor de toma de decisiones de \textit{Behavior Trees}). Destinar ciclos de CPU a un intérprete de Python para la comunicación serie básica limita la capacidad de respuesta de los lazos de control más críticos.
+    \item \textbf{Eliminación del Global Interpreter Lock (GIL) y determinismo temporal:} El driver en C++20 implementa un decodificador de tramas mediante una máquina de estados finitos (FSM) de cero copias y gestión RAII de los descriptores de archivo serie (\texttt{termios}), garantizando tiempos de lectura y escritura deterministas.
+    \item \textbf{Integración nativa con la pila ROS 2:} Al programar el driver en C++20, se evitan capas intermedias de conversión de tipos de datos o bindings mixtos, facilitando la publicación directa de mensajes estandarizados (\texttt{nav\_msgs/msg/Odometry}, \texttt{sensor\_msgs/msg/Imu}, \texttt{sensor\_msgs/msg/BatteryState}).
+    \item \textbf{Rendimiento computacional contrastado:} Los ensayos de rendimiento realizados sobre 1.000.000 de operaciones demostraron una aceleración global de más de 20 veces respecto a la librería original del fabricante (destacando una mejora de hasta 340 veces en el desempaquetado de datos numéricos en coma flotante), situando el consumo medio de CPU del driver por debajo del 0.5\%.
+\end{enumerate}
+
+---
+
+\section{Estado de validación experimental actual}
+\label{sec:estado_validacion}
+
+Para mantener la rigurosidad y trazabilidad en la memoria del trabajo, se delimita el grado de validación empírica alcanzado en cada capa del sistema:
+
+\begin{itemize}
+    \item \textbf{Capa de bajo nivel (Driver C++20):} Validada experimentalmente en hardware físico real. Se ha comprobado con éxito la transmisión bidireccional por puerto serie UART a 115200 baudios, la emisión de comandos de locomoción y la recepción e interpretación de la telemetría del robot.
+    \item \textbf{Capa de navegación y ROS 2 (Nav2 y Behavior Trees):} Desarrollada a nivel de arquitectura y paquetes software, y validada preliminarmente mediante herramientas de simulación (modelo cinemático en Gazebo y entorno SIL con emulador de hardware serie \textit{Mock MCU}). Las pruebas de navegación autónoma integrada con Nav2 sobre los perros físicos en el entorno de pruebas constituyen la siguiente fase experimental del proyecto.
+\end{itemize}

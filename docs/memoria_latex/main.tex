@@ -1,0 +1,135 @@
+\documentclass[11pt,a4paper,twoside]{book}
+
+% --- Paquetes Básicos y Tipografía ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{eurosym}
+
+% --- Geometría de Página (Estándar Encuadernación ETSII UPM) ---
+\usepackage[
+    a4paper,
+    top=30mm,
+    bottom=30mm,
+    inner=30mm,
+    outer=25mm,
+    headheight=16pt
+]{geometry}
+
+% --- Matemáticas, Tablas y Gráficos ---
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+
+% --- Enlaces y URLs ---
+\usepackage{xcolor}
+\definecolor{upmblue}{RGB}{0, 75, 141}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=upmblue,
+    citecolor=upmblue,
+    urlcolor=upmblue
+}
+
+% --- Código Fuente ---
+\usepackage{listings}
+\lstset{
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{gray!40},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    keywordstyle=\color{upmblue}\bfseries,
+    stringstyle=\color{teal},
+    commentstyle=\color{gray}\itshape
+}
+
+% --- Encabezados y Pies de Página ---
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\thepage}
+\fancyhead[RE]{\nouppercase{\leftmark}}
+\fancyhead[LO]{\nouppercase{\rightmark}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ====================================================================
+% DATOS DEL TRABAJO FIN DE MÁSTER (ETSII - UPM)
+% ====================================================================
+\newcommand{\tfmTitulo}{Orquestador de Misiones y Control Reactivo Multi-Robot mediante Behavior Trees para la Brigada de Búsqueda y Rescate RASTREO}
+\newcommand{\tfmAutor}{Álvaro Pérez-Borbujo Mohedo}
+\newcommand{\tfmDirector}{Dr. Christyan Cruz Ulloa}
+\newcommand{\tfmPonente}{}
+\newcommand{\tfmMaster}{Máster Universitario en Automática y Robótica (MUAR)}
+\newcommand{\tfmDepartamento}{Departamento de Automática, Ingeniería Eléctrica y Electrónica e Informática Industrial (DISAM)}
+\newcommand{\tfmCentro}{Centro de Automática y Robótica (CAR CSIC-UPM)}
+\newcommand{\tfmFecha}{Madrid, 2026}
+
+\begin{document}
+
+% --- Páginas Preliminares (Roman) ---
+\frontmatter
+
+% Portada (Esquema provisional ETSII UPM)
+\begin{titlepage}
+    \centering
+    {\scshape\LARGE Universidad Politécnica de Madrid \par}
+    \vspace{0.3cm}
+    {\scshape\Large Escuela Técnica Superior de Ingenieros Industriales \par}
+    \vspace{1.5cm}
+    
+    % Logo UPM / ETSII (Placeholder)
+    % \includegraphics[width=0.35\textwidth]{figuras/logo_etsii_upm.png}\par
+    \vspace{1.5cm}
+    
+    {\Large\textbf{TRABAJO FIN DE MÁSTER}\par}
+    \vspace{0.5cm}
+    {\large \tfmMaster \par}
+    \vspace{1.5cm}
+    
+    {\Huge\bfseries\color{upmblue} \tfmTitulo \par}
+    \vspace{2cm}
+    
+    \begin{flushright}
+        \textbf{Autor:} \tfmAutor \\
+        \textbf{Director:} \tfmDirector \\
+        \textbf{Centro:} \tfmCentro \\
+        \textbf{Departamento:} \tfmDepartamento
+    \end{flushright}
+    
+    \vfill
+    {\large \tfmFecha \par}
+\end{titlepage}
+
+% Índices
+\tableofcontents
+\listoffigures
+\listoftables
+
+% --- Cuerpo Principal (Arabic) ---
+\mainmatter
+
+\include{capitulos/01_introduccion}
+\include{capitulos/02_investigacion}
+\include{capitulos/03_arquitectura_sistema}
+\include{capitulos/04_control_behavior_trees}
+\include{capitulos/05_orquestador_flota}
+\include{capitulos/06_pruebas_y_resultados}
+\include{capitulos/07_presupuesto_y_planificacion}
+\include{capitulos/08_conclusiones}
+
+% --- Bibliografía ---
+\backmatter
+% \bibliographystyle{IEEEtran}
+% \bibliography{bibliografia}
+
+\end{document}

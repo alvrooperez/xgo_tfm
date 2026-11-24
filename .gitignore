@@ -1,24 +1,36 @@
-# ROS 2 Build Artifacts
+# ROS 2 / colcon build artifacts
 build/
 install/
 log/
 
-# IDE & Editor Configs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Python cache
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
+*.egg-info/
 
-# OS Artifacts
+# IDE / OS / Notes
+.vscode/
+.obsidian/
 .DS_Store
-Thumbs.db
+*.swp
+*~
 
-# Core dumps and logs
-core
-*.log
+# BehaviorTree runtime logs
+*.btlog
+
+# LaTeX auxiliary build files
+docs/memoria_latex/*.aux
+docs/memoria_latex/*.bbl
+docs/memoria_latex/*.blg
+docs/memoria_latex/*.fdb_latexmk
+docs/memoria_latex/*.fls
+docs/memoria_latex/*.log
+docs/memoria_latex/*.out
+docs/memoria_latex/*.synctex.gz
+docs/memoria_latex/*.toc
+docs/memoria_latex/*.lof
+docs/memoria_latex/*.lot
+docs/memoria_latex/capitulos/*.aux
+
+# External vendor reference library (upstream LuwuDynamics/xgo_doglib)
+xgo_doglib/

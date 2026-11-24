@@ -1,0 +1,40 @@
+\chapter{Pruebas Experimentales y Resultados}
+\label{chap:pruebas}
+
+En este capítulo se recogen los ensayos experimentales llevados a cabo tanto a nivel de emulación en software (\textit{Software-in-the-Loop}, SIL) como en la comunicación física sobre hardware (\textit{Hardware-in-the-Loop}, HIL).
+
+\section{Evaluación del rendimiento computacional (Benchmark C++20 vs Python)}
+\label{sec:benchmark_rendimiento}
+
+Para cuantificar objetivamente la ganancia de rendimiento obtenida tras la reingeniería del driver, se ejecutó un banco de pruebas comparativo de 1.000.000 de operaciones consecutivas frente a la librería original en Python (\texttt{xgolib\_dog.py}) suministrada por el fabricante.
+
+Los resultados empíricos obtenidos se detallan en la Tabla~\ref{tab:benchmark_driver}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Comparativa de rendimiento entre la librería original Python y el nuevo driver C++20 (1.000.000 operaciones).}
+    \label{tab:benchmark_driver}
+    \begin{tabular}{lccc}
+        \toprule
+        \textbf{Operación evaluada} & \textbf{Python (\texttt{xgolib\_dog})} & \textbf{C++20 (\texttt{xgo\_driver})} & \textbf{Aceleración (\textit{Speedup})} \\
+        \midrule
+        Mapeo físico y creación trama TX & 440.74\,ms & 30.06\,ms & \textbf{14.6$\times$} \\
+        Desempaquetado flotante (\texttt{Byte2float}) & 285.68\,ms & 0.84\,ms & \textbf{340$\times$} \\
+        Parseo de flujo UART RX (900.000 bytes) & 54.29\,ms & 7.17\,ms & \textbf{7.6$\times$} \\
+        \midrule
+        \textbf{Tiempo total de ejecución} & \textbf{780.71\,ms} & \textbf{38.08\,ms} & \textbf{20.5$\times$ más rápido} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Como se observa, el nuevo controlador reduce el tiempo total de procesamiento en más de un 95\%, con una mejora crítica en el desempaquetado numérico de telemetría de 340 veces, liberando capacidad computacional esencial en la Raspberry Pi CM5.
+
+\section{Validación en hardware físico real}
+\label{sec:validacion_hw}
+
+Se ha verificado experimentalmente el enlace serie bidireccional entre la Raspberry Pi CM5 y la placa controladora de los cuadrúpedos a través de \texttt{/dev/ttyAMA0}. Las pruebas confirman la recepción continua de la IMU y la odometría de los servomotores a 115200 baudios, así como la actuación correcta del mecanismo de parada por timeout del watchdog.
+
+\section{Validación en simulación (SIL)}
+\label{sec:validacion_sil}
+
+\textit{[Sección esquemática: Resultados de las pruebas de navegación reactiva en Gazebo y verificación del emulador Mock MCU en bucle cerrado].}

@@ -1,0 +1,30 @@
+\chapter{Introducción y Objetivos}
+\label{chap:introduccion}
+
+\section{Contexto y motivación}
+\label{sec:contexto}
+
+Las operaciones de búsqueda y rescate en estructuras colapsadas (\textit{Urban Search and Rescue}, USAR) tras desastres naturales o colapsos estructurales entrañan un riesgo crítico para los equipos de rescate humanos y las unidades caninas tradicionales. En estos entornos altamente confinados y dinámicos, la introducción de plataformas robóticas móviles capaces de explorar, evaluar la estabilidad del terreno y localizar a víctimas de manera autónoma representa un salto cualitativo fundamental.
+
+El presente Trabajo Fin de Máster se enmarca en las actividades de investigación desarrolladas en el **Centro de Automática y Robótica (CAR CSIC-UPM)** en el contexto del proyecto \textbf{RASTREO} (\textit{«Brigada Robotizada de Rastreo Canino y Asistencia Humanoide para respuesta inteligente en Búsqueda y Rescate»}).
+
+\section{Objetivos del trabajo}
+\label{sec:objetivos}
+
+El objetivo general de este proyecto es el diseño, desarrollo e integración de un sistema de control reactivo y orquestación para una brigada homogénea de tres robots cuadrúpedos, permitiendo la asignación y ejecución distribuida de misiones en entornos desafiantes.
+
+Para alcanzar dicho objetivo general, se establecen los siguientes \textbf{objetivos específicos}:
+
+\begin{enumerate}
+    \item \textbf{Controlador de comunicaciones en bajo nivel (C++20):} Desarrollar un driver serie robusto, de alta eficiencia y determinista para la interacción directa con el microcontrolador de los robots XGO Mini 2S.
+    \item \textbf{Arquitectura de despliegue modular:} Diseñar una infraestructura basada en microservicios contenerizados mediante Docker sobre ROS 2 Jazzy, garantizando aislamiento de fallos entre la navegación y el hardware.
+    \item \textbf{Integración de navegación autónoma local:} Desplegar la pila de navegación Nav2 con el controlador local omnidireccional MPPI, adaptado a la cinemática de las plataformas cuadrúpedas.
+    \item \textbf{Control reactivo individual tolerante a fallos:} Diseñar e implementar árboles de comportamiento (\textit{Behavior Trees}) mediante la librería \texttt{BehaviorTree.CPP v4}, estructurando de forma jerárquica la respuesta ante contingencias y fallos críticos.
+    \item \textbf{Orquestador de misiones multi-robot:} Desarrollar un despachador global en C++20 que asigne dinámicamente misiones operativas a la brigada (exploración, barrido sistemático, tendido de cable guía, marcaje de víctimas y relevo de batería).
+    \item \textbf{Validación experimental en simulación y hardware:} Evaluar el rendimiento del sistema mediante pruebas en lazo cerrado en simulación (SIL) y contrastar la fiabilidad del driver en los robots físicos.
+\end{enumerate}
+
+\section{Estructura del documento}
+\label{sec:estructura}
+
+La memoria se organiza en ocho capítulos estructurados de forma secuencial: el Capítulo~\ref{chap:investigacion} expone la plataforma de hardware y el estado del arte; el Capítulo~\ref{chap:arquitectura} detalla la arquitectura de software y el driver C++20; el Capítulo~\ref{chap:behavior_trees} aborda la metodología y diseño de los \textit{Behavior Trees}; el Capítulo~\ref{chap:orquestador} describe el orquestador global de la flota; el Capítulo~\ref{chap:pruebas} presenta los resultados experimentales y benchmarks; el Capítulo~\ref{chap:presupuesto} recoge el presupuesto y planificación del proyecto; y el Capítulo~\ref{chap:conclusiones} resume las conclusiones y líneas futuras.

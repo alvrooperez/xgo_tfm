@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+
+  <!-- ===================================================================== -->
+  <!-- 1. ARBOL PRINCIPAL: MainTree                                          -->
+  <!-- ===================================================================== -->
+  <BehaviorTree ID="MainTree">
+    <ReactiveFallback name="Root_ReactiveFallback">
+
+      <!-- RAMA 1: SEGURIDAD CRÍTICA (E-STOP O CAÍDA) -->
+      <Fallback name="Branch1_Safety">
+        <Sequence name="Handle_EmergencyStop">
+          <IsEmergencyStopActive name="Check_EStop"/>
+          <StopRobot name="EStop_HaltMotors"/>
+          <SendAlert message="CRITICAL_SAFETY: E-STOP Active" pose="{current_pose}" name="Alert_EStop"/>
+        </Sequence>
+        <Sequence name="Handle_Fall">
+          <HasFallen tilt_threshold_deg="60.0" name="Check_IMU_Fall"/>
+          <StopRobot name="Fall_HaltMotors"/>
+          <SendAlert message="CRITICAL_SAFETY: Robot Rollover/Fallen" pose="{current_pose}" name="Alert_Fall"/>
+        </Sequence>
+      </Fallback>
+
+      <!-- RAMA 2: CONTINGENCIA ENERGÉTICA (BATERÍA BAJA) -->
+      <Sequence name="Branch2_Battery">
+        <IsBatteryLow threshold="15.0" name="Check_Battery_Low"/>
+        <SendAlert message="BATTERY_CRITICAL: Initiating Emergency RTB" pose="{current_pose}" name="Alert_LowBattery"/>
+        <SubTree ID="SubTree_M6_RTB" _autoremap="true" dock_pose="{dock_pose}" name="SubTree_Emergency_RTB"/>
+      </Sequence>
+
+      <!-- RAMA 3: CONTINGENCIA DE ENLACE WI-FI -->
+      <Sequence name="Branch3_Wifi">
+        <Inverter name="Invert_WifiStatus">
+          <HasWifiConnection timeout_s="5.0" name="Check_Wifi_Connection"/>
+        </Inverter>
+        <Wait duration_s="5.0" name="Wait_WifiGracePeriod"/>
+        <NavigateToPose goal="{last_known_wifi_pose}" name="Retrace_ToLastWifiBreadcrumb"/>
+      </Sequence>
+
+      <!-- RAMA 4: DESPACHADOR DE MISIONES (TASK DISPATCHER) -->
+      <Sequence name="Branch4_Missions">
+        <HasTaskAssigned name="Check_HasTaskAssigned"/>
+        <Fallback name="MissionSelector">
+          <!-- M1: Active SLAM -->
+          <Sequence name="Select_M1">
+            <IsTaskType expected_type="MAP_UNKNOWN" name="Is_M1_ActiveSLAM"/>
+            <SubTree ID="SubTree_M1_ActiveSLAM" _autoremap="true" frontier_pose="{goal_pose}" map_name="{map_name}" name="Call_M1_ActiveSLAM"/>
+          </Sequence>
+
+          <!-- M2: Cooperative Sweep -->
+          <Sequence name="Select_M2">
+            <IsTaskType expected_type="SWEEP_AREA" name="Is_M2_SweepArea"/>
+            <SubTree ID="SubTree_M2_SweepArea" _autoremap="true" waypoints="{waypoints_list}" name="Call_M2_SweepArea"/>
+          </Sequence>
+
+          <!-- M3: Point Dispatch -->
+          <Sequence name="Select_M3">
+            <IsTaskType expected_type="GOTO_POINT" name="Is_M3_GoToPoint"/>
+            <SubTree ID="SubTree_M3_GoToPoint" _autoremap="true" goal="{goal_pose}" name="Call_M3_GoToPoint"/>
+          </Sequence>
+
+          <!-- M4: Target Beaconing -->
+          <Sequence name="Select_M4">
+            <IsTaskType expected_type="TARGET_BEACON" name="Is_M4_BeaconTarget"/>
+            <SubTree ID="SubTree_M4_BeaconTarget" _autoremap="true" target_pose="{target_pose}" name="Call_M4_BeaconTarget"/>
+          </Sequence>
+
+          <!-- M5: Deploy Cable -->
+          <Sequence name="Select_M5">
+            <IsTaskType expected_type="DEPLOY_CABLE" name="Is_M5_DeployCable"/>
+            <SubTree ID="SubTree_M5_DeployCable" _autoremap="true" waypoints="{waypoints_list}" name="Call_M5_DeployCable"/>
+          </Sequence>
+
+          <!-- M6: Return to Base / Handover -->
+          <Sequence name="Select_M6">
+            <IsTaskType expected_type="RTB" name="Is_M6_RTB"/>
+            <SubTree ID="SubTree_M6_RTB" _autoremap="true" dock_pose="{goal_pose}" name="Call_M6_RTB"/>
+          </Sequence>
+        </Fallback>
+      </Sequence>
+
+      <!-- RAMA 5: REPOSO Y DISPONIBILIDAD (IDLE) -->
+      <Sequence name="Branch5_Idle">
+        <StopRobot name="Idle_KeepStationary"/>
+        <Wait duration_s="1.0" name="Idle_WaitLoop"/>
+      </Sequence>
+
+    </ReactiveFallback>
+  </BehaviorTree>
+
+  <!-- ===================================================================== -->
+  <!-- 2. SUBÁRBOLES DE MISIÓN (M1 A M6)                                     -->
+  <!-- ===================================================================== -->
+
+  <!-- SubTree M1: Active SLAM Continuo guiado por fronteras -->
+  <BehaviorTree ID="SubTree_M1_ActiveSLAM">
+    <Fallback name="M1_FrontierNavigation">
+      <NavigateToPose goal="{frontier_pose}" name="M1_AdvanceToFrontier"/>
+      <Sequence name="M1_RecoveryPipeline">
+        <ScanArea duration_s="4.0" name="M1_SettleSLAMGraph_360"/>
+        <NavigateToPose goal="{frontier_pose}" name="M1_RetryFrontier"/>
+      </Sequence>
+    </Fallback>
+  </BehaviorTree>
+
+  <!-- SubTree M2: Barrido Sistemático por Tramos -->
+  <BehaviorTree ID="SubTree_M2_SweepArea">
+    <Fallback name="M2_ChunkTraversal">
+      <NavigateThroughPoses waypoints="{waypoints}" name="M2_FollowWaypoints"/>
+      <Sequence name="M2_RecoveryPipeline">
+        <RecoverNavigation recovery_type="CLEAR_COSTMAP" name="M2_ClearCostmap"/>
+        <RecoverNavigation recovery_type="BACKUP" name="M2_Backup"/>
+        <NavigateThroughPoses waypoints="{waypoints}" name="M2_RetryWaypoints"/>
+      </Sequence>
+    </Fallback>
+  </BehaviorTree>
+
+  <!-- SubTree M3: Despacho a un Punto con Recuperación -->
+  <BehaviorTree ID="SubTree_M3_GoToPoint">
+    <Fallback name="M3_NavWithRecovery">
+      <NavigateToPose goal="{goal}" name="M3_NavigateDirect"/>
+      <Sequence name="M3_RecoveryPipeline">
+        <RecoverNavigation recovery_type="CLEAR_COSTMAP" name="M3_ClearCostmap"/>
+        <RecoverNavigation recovery_type="BACKUP" name="M3_Backup"/>
+        <NavigateToPose goal="{goal}" name="M3_RetryNav"/>
+      </Sequence>
+    </Fallback>
+  </BehaviorTree>
+
+  <!-- SubTree M4: Balizamiento y Marcaje de Víctima -->
+  <BehaviorTree ID="SubTree_M4_BeaconTarget">
+    <Sequence name="M4_BeaconSequence">
+      <NavigateToPose goal="{target_pose}" name="M4_ApproachSafeDistance"/>
+      <ScanArea duration_s="3.0" name="M4_SensorConfirmation"/>
+      <SendAlert message="BEACONING_CONFIRMED: Victim Marked" pose="{target_pose}" name="M4_BroadcastBeacon"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- SubTree M5: Despliegue de Cable Guía Físico -->
+  <BehaviorTree ID="SubTree_M5_DeployCable">
+    <Sequence name="M5_DeployTether">
+      <OperateArm action_type="GRIP_CABLE" name="M5_GripCable"/>
+      <NavigateThroughPoses waypoints="{waypoints}" name="M5_WalkSafePath"/>
+      <OperateArm action_type="RELEASE_CABLE" name="M5_ReleaseCable"/>
+      <SendAlert message="TETHER_DEPLOYED_SUCCESSFULLY" pose="{current_pose}" name="M5_NotifyDeployed"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- SubTree M6: Retorno Seguro a Base (RTB) -->
+  <BehaviorTree ID="SubTree_M6_RTB">
+    <Sequence name="M6_ReturnToBase">
+      <SendAlert message="START_RTB: Returning to Charging Dock" pose="{current_pose}" name="M6_NotifyRTB"/>
+      <NavigateToPose goal="{dock_pose}" name="M6_NavigateToDock"/>
+      <StopRobot name="M6_SitAndCutMotors"/>
+      <SendAlert message="DOCKED_SAFELY: Ready for Handover/Charge" pose="{dock_pose}" name="M6_NotifyDocked"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- ===================================================================== -->
+  <!-- 3. MODELO DE NODOS PARA GROOT2 (TreeNodesModel)                      -->
+  <!-- ===================================================================== -->
+  <TreeNodesModel>
+    <!-- Condiciones -->
+    <Condition ID="IsEmergencyStopActive"/>
+    <Condition ID="HasFallen">
+      <input_port name="tilt_threshold_deg" type="double" default="60.0"/>
+    </Condition>
+    <Condition ID="IsBatteryLow">
+      <input_port name="threshold" type="double" default="15.0"/>
+    </Condition>
+    <Condition ID="HasWifiConnection">
+      <input_port name="timeout_s" type="double" default="5.0"/>
+    </Condition>
+    <Condition ID="HasTaskAssigned"/>
+    <Condition ID="IsTaskType">
+      <input_port name="expected_type" type="std::string"/>
+    </Condition>
+    <Condition ID="IsTargetDetected">
+      <output_port name="output_pose" type="geometry_msgs::msg::PoseStamped"/>
+    </Condition>
+    <Condition ID="IsTargetLost">
+      <input_port name="timeout_s" type="double" default="5.0"/>
+    </Condition>
+    <Condition ID="IsPathBlocked"/>
+    <Condition ID="IsLocated">
+      <input_port name="cov_threshold" type="double" default="0.5"/>
+    </Condition>
+
+    <!-- Acciones -->
+    <Action ID="NavigateToPose">
+      <input_port name="goal" type="geometry_msgs::msg::PoseStamped"/>
+    </Action>
+    <Action ID="NavigateThroughPoses">
+      <input_port name="waypoints" type="std::vector&lt;geometry_msgs::msg::PoseStamped&gt;"/>
+    </Action>
+    <Action ID="StopRobot"/>
+    <Action ID="Wait">
+      <input_port name="duration_s" type="double" default="1.0"/>
+    </Action>
+    <Action ID="RecoverNavigation">
+      <input_port name="recovery_type" type="std::string"/>
+    </Action>
+    <Action ID="ScanArea">
+      <input_port name="duration_s" type="double" default="3.0"/>
+    </Action>
+    <Action ID="OperateArm">
+      <input_port name="action_type" type="std::string"/>
+    </Action>
+    <Action ID="SaveMap">
+      <input_port name="map_name" type="std::string"/>
+    </Action>
+    <Action ID="SendAlert">
+      <input_port name="message" type="std::string"/>
+      <input_port name="pose" type="geometry_msgs::msg::PoseStamped"/>
+    </Action>
+
+    <!-- Modelos de SubÁrboles -->
+    <SubTree ID="SubTree_M1_ActiveSLAM">
+      <input_port name="frontier_pose" type="geometry_msgs::msg::PoseStamped"/>
+      <input_port name="map_name" type="std::string"/>
+    </SubTree>
+    <SubTree ID="SubTree_M2_SweepArea">
+      <input_port name="waypoints" type="std::vector&lt;geometry_msgs::msg::PoseStamped&gt;"/>
+    </SubTree>
+    <SubTree ID="SubTree_M3_GoToPoint">
+      <input_port name="goal" type="geometry_msgs::msg::PoseStamped"/>
+    </SubTree>
+    <SubTree ID="SubTree_M4_BeaconTarget">
+      <input_port name="target_pose" type="geometry_msgs::msg::PoseStamped"/>
+    </SubTree>
+    <SubTree ID="SubTree_M5_DeployCable">
+      <input_port name="waypoints" type="std::vector&lt;geometry_msgs::msg::PoseStamped&gt;"/>
+    </SubTree>
+    <SubTree ID="SubTree_M6_RTB">
+      <input_port name="dock_pose" type="geometry_msgs::msg::PoseStamped"/>
+    </SubTree>
+  </TreeNodesModel>
+
+</root>

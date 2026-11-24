@@ -1,0 +1,188 @@
+<?xml version="1.0"?>
+<robot name="xgo_mini2s" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:arg name="robot_ns" default=""/>
+  <xacro:arg name="leg_rgba" default="0.9 0.4 0.0 1.0"/>
+  <xacro:arg name="xyz_offset" default="0 0 0"/>
+
+  <xacro:property name="ns" value="$(arg robot_ns)"/>
+  <xacro:property name="topic_prefix" value="${'/' + ns if ns != '' else ''}"/>
+  <xacro:property name="frame_prefix" value="${ns + '/' if ns != '' else ''}"/>
+  <xacro:property name="model_name" value="${ns if ns != '' else 'xgo_mini2s'}"/>
+
+  <!-- Materials -->
+  <material name="dark_grey">
+    <color rgba="0.2 0.2 0.2 1.0"/>
+  </material>
+  <material name="orange">
+    <color rgba="$(arg leg_rgba)"/>
+  </material>
+  <material name="black">
+    <color rgba="0.05 0.05 0.05 1.0"/>
+  </material>
+  <material name="blue">
+    <color rgba="0.1 0.3 0.8 1.0"/>
+  </material>
+
+  <!-- Base Footprint (Ground plane projection) -->
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.12" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Base Link (Robot Body) -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.25 0.14 0.08"/>
+      </geometry>
+      <material name="dark_grey"/>
+    </visual>
+    <visual name="dorsal_badge">
+      <origin xyz="-0.03 0 0.042" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.12 0.11 0.006"/>
+      </geometry>
+      <material name="orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.25 0.14 0.08"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.2"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.0026" ixy="0" ixz="0" iyy="0.0068" iyz="0" izz="0.0082"/>
+    </inertial>
+  </link>
+
+  <!-- Visual Legs -->
+  <xacro:macro name="leg" params="prefix x_pos y_pos">
+    <link name="${prefix}_leg">
+      <visual>
+        <origin xyz="0 0 -0.06" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="0.015" length="0.12"/>
+        </geometry>
+        <material name="orange"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 -0.06" rpy="0 0 0"/>
+        <geometry>
+          <sphere radius="0.018"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.1"/>
+        <origin xyz="0 0 -0.06" rpy="0 0 0"/>
+        <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.00005"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}_leg_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${prefix}_leg"/>
+      <origin xyz="${x_pos} ${y_pos} 0" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:leg prefix="fl" x_pos="0.10" y_pos="0.08"/>
+  <xacro:leg prefix="fr" x_pos="0.10" y_pos="-0.08"/>
+  <xacro:leg prefix="rl" x_pos="-0.10" y_pos="0.08"/>
+  <xacro:leg prefix="rr" x_pos="-0.10" y_pos="-0.08"/>
+
+  <!-- IMU Sensor -->
+  <link name="imu_link"/>
+
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- LiDAR Sensor Link -->
+  <link name="laser_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.035" length="0.03"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.035" length="0.03"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.15"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser_link"/>
+    <origin xyz="0.06 0 0.055" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ================= Gazebo Harmonic Plugins & Sensors ================= -->
+  <gazebo reference="imu_link">
+    <sensor name="imu_sensor" type="imu">
+      <always_on>true</always_on>
+      <update_rate>50</update_rate>
+      <visualize>true</visualize>
+      <topic>${topic_prefix}/imu/data</topic>
+      <gz_frame_id>${frame_prefix}imu_link</gz_frame_id>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="laser_link">
+    <sensor name="gpu_lidar" type="gpu_lidar">
+      <pose>0 0 0 0 0 0</pose>
+      <always_on>true</always_on>
+      <visualize>true</visualize>
+      <update_rate>10</update_rate>
+      <topic>${topic_prefix}/scan</topic>
+      <gz_frame_id>${frame_prefix}laser_link</gz_frame_id>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.14159265</min_angle>
+            <max_angle>3.14159265</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.12</min>
+          <max>10.0</max>
+          <resolution>0.01</resolution>
+        </range>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- Gazebo Movement & Odometry Plugins -->
+  <gazebo>
+    <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl">
+      <topic>${topic_prefix}/cmd_vel</topic>
+    </plugin>
+    <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>${frame_prefix}odom</odom_frame>
+      <robot_base_frame>${frame_prefix}base_footprint</robot_base_frame>
+      <odom_topic>${topic_prefix}/odom</odom_topic>
+      <tf_topic>/model/${model_name}/tf</tf_topic>
+      <dimensions>2</dimensions>
+    </plugin>
+  </gazebo>
+
+</robot>

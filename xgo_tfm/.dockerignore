@@ -1,0 +1,9 @@
+build/
+install/
+log/
+.git/
+.gitignore
+test_hardware
+tests/test_hardware
+*.o
+*.a

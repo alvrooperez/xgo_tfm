@@ -1,0 +1,24 @@
+\chapter{Conclusiones y Líneas Futuras}
+\label{chap:conclusiones}
+
+\section{Conclusiones generales}
+\label{sec:conclusiones_gen}
+
+En este Trabajo Fin de Máster se ha desarrollado una arquitectura integral para el control reactivo y la orquestación de una flota de robots cuadrúpedos orientada a operaciones de búsqueda y rescate en el marco del proyecto RASTREO del Centro de Automática y Robótica (CAR CSIC-UPM).
+
+Entre los principales hitos alcanzados destacan:
+\begin{itemize}
+    \item La sustitución exitosa de la capa de control original por un driver de bajo nivel en C++20 de alto rendimiento y determinista, reduciendo el consumo de cómputo en más de un 95\%.
+    \item La articulación de una arquitectura contenerizada en microservicios desacoplados que aísla de forma segura el hardware crítico frente a posibles fallos de navegación.
+    \item La formalización de un árbol de comportamiento tolerante a contingencias y estructurado para la ejecución modular de seis misiones operativas clave.
+\end{itemize}
+
+\section{Líneas de trabajo futuro}
+\label{sec:lineas_futuras}
+
+Como continuación natural a los desarrollos presentados, se proponen las siguientes líneas de trabajo:
+\begin{enumerate}
+    \item Despliegue y validación en suelo de las misiones de navegación cooperativa Nav2 con los tres perros físicos de forma simultánea.
+    \item Incorporación de algoritmos de percepción visual mediante aprendizaje profundo a bordo de la Raspberry Pi CM5 para el reconocimiento automático de víctimas.
+    \item Integración de la brigada canina con plataformas humanoides y estaciones de control de campo dentro del ecosistema completo de RASTREO.
+\end{enumerate}

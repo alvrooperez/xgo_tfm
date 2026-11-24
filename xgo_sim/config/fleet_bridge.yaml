@@ -1,0 +1,98 @@
+- ros_topic_name: /clock
+  gz_topic_name: /clock
+  ros_type_name: rosgraph_msgs/msg/Clock
+  gz_type_name: gz.msgs.Clock
+  direction: GZ_TO_ROS
+
+# ======================== ROBOT 1 (Naranja) ========================
+- ros_topic_name: /robot1/cmd_vel
+  gz_topic_name: /robot1/cmd_vel
+  ros_type_name: geometry_msgs/msg/Twist
+  gz_type_name: gz.msgs.Twist
+  direction: ROS_TO_GZ
+
+- ros_topic_name: /robot1/odom
+  gz_topic_name: /robot1/odom
+  ros_type_name: nav_msgs/msg/Odometry
+  gz_type_name: gz.msgs.Odometry
+  direction: GZ_TO_ROS
+
+- ros_topic_name: /robot1/scan
+  gz_topic_name: /robot1/scan
+  ros_type_name: sensor_msgs/msg/LaserScan
+  gz_type_name: gz.msgs.LaserScan
+  direction: GZ_TO_ROS
+
+- ros_topic_name: /robot1/imu/data
+  gz_topic_name: /robot1/imu/data
+  ros_type_name: sensor_msgs/msg/Imu
+  gz_type_name: gz.msgs.IMU
+  direction: GZ_TO_ROS
+
+- ros_topic_name: /tf
+  gz_topic_name: /model/robot1/tf
+  ros_type_name: tf2_msgs/msg/TFMessage
+  gz_type_name: gz.msgs.Pose_V
+  direction: GZ_TO_ROS
+
+# ======================== ROBOT 2 (Azul) ========================
+- ros_topic_name: /robot2/cmd_vel
+  gz_topic_name: /robot2/cmd_vel
+  ros_type_name: geometry_msgs/msg/Twist
+  gz_type_name: gz.msgs.Twist
+  direction: ROS_TO_GZ
+
+- ros_topic_name: /robot2/odom
+  gz_topic_name: /robot2/odom
+  ros_type_name: nav_msgs/msg/Odometry
+  gz_type_name: gz.msgs.Odometry
+  direction: GZ_TO_ROS
+
+- ros_topic_name: /robot2/scan
+  gz_topic_name: /robot2/scan
+  ros_type_name: sensor_msgs/msg/LaserScan
+  gz_type_name: gz.msgs.LaserScan
+  direction: GZ_TO_ROS
+
+- ros_topic_name: /robot2/imu/data
+  gz_topic_name: /robot2/imu/data
+  ros_type_name: sensor_msgs/msg/Imu
+  gz_type_name: gz.msgs.IMU
+  direction: GZ_TO_ROS
+
+- ros_topic_name: /tf
+  gz_topic_name: /model/robot2/tf
+  ros_type_name: tf2_msgs/msg/TFMessage
+  gz_type_name: gz.msgs.Pose_V
+  direction: GZ_TO_ROS
+
+# ======================== ROBOT 3 (Verde) ========================
+- ros_topic_name: /robot3/cmd_vel
+  gz_topic_name: /robot3/cmd_vel
+  ros_type_name: geometry_msgs/msg/Twist
+  gz_type_name: gz.msgs.Twist
+  direction: ROS_TO_GZ
+
+- ros_topic_name: /robot3/odom
+  gz_topic_name: /robot3/odom
+  ros_type_name: nav_msgs/msg/Odometry
+  gz_type_name: gz.msgs.Odometry
+  direction: GZ_TO_ROS
+
+- ros_topic_name: /robot3/scan
+  gz_topic_name: /robot3/scan
+  ros_type_name: sensor_msgs/msg/LaserScan
+  gz_type_name: gz.msgs.LaserScan
+  direction: GZ_TO_ROS
+
+- ros_topic_name: /robot3/imu/data
+  gz_topic_name: /robot3/imu/data
+  ros_type_name: sensor_msgs/msg/Imu
+  gz_type_name: gz.msgs.IMU
+  direction: GZ_TO_ROS
+
+- ros_topic_name: /tf
+  gz_topic_name: /model/robot3/tf
+  ros_type_name: tf2_msgs/msg/TFMessage
+  gz_type_name: gz.msgs.Pose_V
+  direction: GZ_TO_ROS
